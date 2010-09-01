@@ -20,28 +20,57 @@ from idavoll import error, iidavoll
 
 KEY_SEPARATOR = ':'
 
-
-# Main CouchDB Storage class
-class Storage:
-	
-	# Data structures
+# Data structures
+class CouchStorage:
 	class Node(Document):
+		doc_type = 'node'
 		node = StringProperty()
 		node_type = StringProperty()
 		persist_items = BooleanProperty()
 		deliver_payloads = BooleanProperty()
 		send_last_published_item = StringProperty()
-		entities = ListProperty()
+		#entities = ListProperty()
 		date = DateTimeProperty()
 
 	class Entity(Document):
+		doc_type = 'entity'
 		jid = StringProperty()
 		nodes = ListProperty() # node affiliation list [{node, affiliation}]
 
 	class Affiliation(Document):
-		entity_id = StringProperty()
-		node_id = StringProperty()
+		doc_type = 'affiliation'
+		entity = StringProperty()
+		node = StringProperty()
 		affiliation = StringProperty()
+		
+		def key(self):
+			return self.key(node=self.node, entity=self.entity, affiliation=self.affiliation)
+
+		@staticmethod
+		def key(entity='', node='', affiliation=''):
+			return 'affiliation' + KEY_SEPARATOR + entity + KEY_SEPARATOR + node + KEY_SEPARATOR + affiliation
+	
+	class Subscription(Document):
+		doc_type = 'subscription'
+		entity = StringProperty()
+		node = StringProperty()
+		resource = StringProperty()
+		subscription_type = StringProperty()
+		subscription_depth = StringProperty()
+		
+		def key(self):
+			return self.key(node=self.node, entity=self.entity, resource=self.resource)
+
+		@staticmethod
+		def key(node='', entity='', resource=''):
+			return 'subscription' + KEY_SEPARATOR + node + KEY_SEPARATOR + entity + KEY_SEPARATOR + resource
+
+
+
+# Main CouchDB Storage class
+class Storage:
+	
+
 	
 	
 	implements(iidavoll.IStorage)
@@ -63,9 +92,10 @@ class Storage:
 		self.dbpool = dbpool
 		
 		# associate datastructures to the db
-		self.Node.set_db(self.dbpool)
-		self.Entity.set_db(self.dbpool)
-		self.Affiliation.set_db(self.dbpool)
+		CouchStorage.Node.set_db(self.dbpool)
+		CouchStorage.Entity.set_db(self.dbpool)
+		CouchStorage.Affiliation.set_db(self.dbpool)
+		CouchStorage.Subscription.set_db(self.dbpool)
 
 
 	def getNode(self, nodeIdentifier):
@@ -75,8 +105,9 @@ class Storage:
 	def _getNode(self, nodeIdentifier):
 		configuration = {}
 		
+
 		try:
-			node = self.Node.get('node%s%s' % (KEY_SEPARATOR, nodeIdentifier))
+			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + nodeIdentifier)
 		except ResourceNotFound:
 			raise error.NodeNotFound()
 
@@ -100,9 +131,11 @@ class Storage:
 
 
 	def getNodeIds(self):
-		d = self.dbpool.runQuery("""SELECT node from nodes""")
-		d.addCallback(lambda results: [r[0] for r in results])
-		return d
+		nodes = CouchStorage.Node.view('pubsub/nodes_by_node')
+		result = []
+		for node in nodes.iterator():
+			result.append(node.node)
+		return result
 
 
 	def createNode(self, nodeIdentifier, owner, config):
@@ -115,34 +148,46 @@ class Storage:
 		owner = owner.userhost()
 		
 		# check if node exists
-		try:
-			node = self.Node.get('node%s%s' % (KEY_SEPARATOR, nodeIdentifier))
+		node = CouchStorage.Node.view('pubsub/nodes_by_node', key=nodeIdentifier)
+		 
+		if node.count() > 0:
 			raise error.NodeExists()
-		except ResourceNotFound:
-			pass
 
 		try:
-			node = self.Node(
-				#node = nodeIdentifier,
+			node = CouchStorage.Node(
+				node = nodeIdentifier,
 				node_type = 'leaf',
 				persist_items = config['pubsub#persist_items'],
 				deliver_payloads = config['pubsub#deliver_payloads'],
 				send_last_published_item = config['pubsub#send_last_published_item'],
-				entities = [{'jid': owner, 'affiliation': 'owner'}],
+				#entities = [{'jid': owner, 'affiliation': 'owner'}],
 				date = datetime.datetime.utcnow()
 				)
-			node['_id'] = 'node:' + nodeIdentifier
+			node['_id'] = 'node' + KEY_SEPARATOR + nodeIdentifier
 			node.save()
 		except Exception as e:
+			print e
 			raise error.Error()
 
-		# save entity / affiliation
+		# save entity
 		try:
-			owner_entity = self.Entity.get('entity%s%s' % (KEY_SEPARATOR, owner))
-		except ResourceNotFound:
-			entity = self.Entity(jid=owner, nodes=[{'node': nodeIdentifier, 'affiliation': 'owner'}])
-			entity['_id'] = 'entity%s%s' % (KEY_SEPARATOR, owner)
-			entity.save()
+			owner_entity = CouchStorage.Entity.get('entity' + KEY_SEPARATOR + owner)
+		except:
+			entity = CouchStorage.Entity(jid=owner)
+			entity['_id'] = 'entity' + KEY_SEPARATOR + owner
+			entity.save()			
+			pass
+			
+
+		# save affiliation
+		affiliation = CouchStorage.Affiliation(
+			node=nodeIdentifier,
+			entity=owner,
+			affiliation='owner',
+		)
+		# 'affiliation' : entity : node : affiliation
+		affiliation['_id'] = 'affiliation:' + owner + ':' + nodeIdentifier + ':owner'
+		affiliation.save()
 
 	def deleteNode(self, nodeIdentifier):
 		return self._deleteNode(nodeIdentifier)
@@ -150,7 +195,7 @@ class Storage:
 
 	def _deleteNode(self, nodeIdentifier):
 		try:
-			node = self.Node.get('node%s%s' % (KEY_SEPARATOR, nodeIdentifier))
+			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + nodeIdentifier)
 			node.delete()
 		except:
 			raise error.NodeNotFound()
@@ -158,13 +203,12 @@ class Storage:
 
 
 	def getAffiliations(self, entity):
-		d = self.dbpool.runQuery("""SELECT node, affiliation FROM entities
-										NATURAL JOIN affiliations
-										NATURAL JOIN nodes
-										WHERE jid=%s""",
-									 (entity.userhost(),))
-		d.addCallback(lambda results: [tuple(r) for r in results])
-		return d
+		affiliations = CouchStorage.Affiliation.view(
+			'pubsub/affiliations_by_entity',
+			key=entity.userhost(),
+			)
+		
+		return [ tuple(a['value']) for a in affiliations]
 
 
 	def getSubscriptions(self, entity):
@@ -201,11 +245,11 @@ class Node:
 		self._config = config
 
 
-	def _checkNodeExists(self, cursor):
-		cursor.execute("""SELECT node_id FROM nodes WHERE node=%s""",
-					   (self.nodeIdentifier,))
-		if not cursor.fetchone():
-			raise error.NodeNotFound()
+	def _checkNodeExists(self):
+		try:
+			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + self.nodeIdentifier)
+		except ResourceNotFound:
+			raise error.NodeNotFound()			
 
 
 	def getType(self):
@@ -223,24 +267,22 @@ class Node:
 			if option in config:
 				config[option] = options[option]
 
-		d = self.dbpool.runInteraction(self._setConfiguration, config)
-		d.addCallback(self._setCachedConfiguration, config)
-		return d
+		self._setConfiguration(config)
+		self._setCachedConfiguration(config)
 
+	def _setConfiguration(self, config):
+		self._checkNodeExists()
+		
+		try:
+			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + self.nodeIdentifier)
+			node['persist_items'] = config["pubsub#persist_items"]
+			node['deliver_payloads'] = config["pubsub#deliver_payloads"]
+			node['send_last_published_item'] = config["pubsub#send_last_published_item"]
+			node.save() # update
+		except Exception as e:
+			raise error.NodeNotFound()
 
-	def _setConfiguration(self, cursor, config):
-		self._checkNodeExists(cursor)
-		cursor.execute("""UPDATE nodes SET persist_items=%s,
-										   deliver_payloads=%s,
-										   send_last_published_item=%s
-						  WHERE node=%s""",
-					   (config["pubsub#persist_items"],
-						config["pubsub#deliver_payloads"],
-						config["pubsub#send_last_published_item"],
-						self.nodeIdentifier))
-
-
-	def _setCachedConfiguration(self, void, config):
+	def _setCachedConfiguration(self, config):
 		self._config = config
 
 
@@ -251,46 +293,46 @@ class Node:
 
 
 	def getAffiliation(self, entity):
-		return self.dbpool.runInteraction(self._getAffiliation, entity)
+		#return self.dbpool.runInteraction(self._getAffiliation, entity)
+		return self._getAffiliation(entity)
 
 
-	def _getAffiliation(self, cursor, entity):
-		self._checkNodeExists(cursor)
-		cursor.execute("""SELECT affiliation FROM affiliations
-						  NATURAL JOIN nodes
-						  NATURAL JOIN entities
-						  WHERE node=%s AND jid=%s""",
-					   (self.nodeIdentifier,
-						entity.userhost()))
-
-		try:
-			return cursor.fetchone()[0]
-		except TypeError:
+	def _getAffiliation(self, entity):
+		self._checkNodeExists()
+		
+		affiliations = CouchStorage.Affiliation.view(
+			'pubsub/affiliations_flat',
+			startkey=[entity.userhost(), self.nodeIdentifier],
+			endkey=[entity.userhost(), self.nodeIdentifier, {}]
+			)
+		
+		if affiliations.count() == 0:
 			return None
-
+		else:
+			affiliation = affiliations.first()['key'][2]
+			return affiliation
 
 	def getSubscription(self, subscriber):
-		return self.dbpool.runInteraction(self._getSubscription, subscriber)
+		#return self.dbpool.runInteraction(self._getSubscription, subscriber)
+		return self._getSubscription(subscriber)
 
 
-	def _getSubscription(self, cursor, subscriber):
-		self._checkNodeExists(cursor)
+	def _getSubscription(self, subscriber):
+		self._checkNodeExists()
 
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''
 
-		cursor.execute("""SELECT state FROM subscriptions
-						  NATURAL JOIN nodes
-						  NATURAL JOIN entities
-						  WHERE node=%s AND jid=%s AND resource=%s""",
-					   (self.nodeIdentifier,
-						userhost,
-						resource))
-		row = cursor.fetchone()
-		if not row:
+		try:
+			subscription = CouchStorage.Subscription.get(
+				'subscription' + KEY_SEPARATOR +
+				self.nodeIdentifier + KEY_SEPARATOR +
+				userhost + KEY_SEPARATOR +
+				resource
+				)
+			return Subscription(self.nodeIdentifier, subscriber, subscription.state)
+		except ResourceNotFound as e:
 			return None
-		else:
-			return Subscription(self.nodeIdentifier, subscriber, row[0])
 
 
 	def getSubscriptions(self, state=None):
@@ -332,12 +374,11 @@ class Node:
 
 
 	def addSubscription(self, subscriber, state, config):
-		return self.dbpool.runInteraction(self._addSubscription, subscriber,
-										  state, config)
+		return self._addSubscription(subscriber, state, config)
 
 
-	def _addSubscription(self, cursor, subscriber, state, config):
-		self._checkNodeExists(cursor)
+	def _addSubscription(self, subscriber, state, config):
+		self._checkNodeExists()
 
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''
@@ -347,56 +388,44 @@ class Node:
 
 		try:
 			# jid must be unique
-			cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
-						   (userhost,))
-		
-		except cursor._pool.dbapi.IntegrityError:
-			cursor.connection.rollback()
+			entity = CouchStorage.Entity(
+				jid=userhost
+				)
+			entity['_id'] = 'entity' + KEY_SEPARATOR + userhost
+		except:
+			pass
 
 		try:
-			cursor.execute("""INSERT INTO subscriptions
-							  (node_id, entity_id, resource, state,
-							   subscription_type, subscription_depth)
-							  SELECT node_id, entity_id, %s, %s, %s, %s FROM
-							  (SELECT node_id FROM nodes
-											  WHERE node=%s) as n
-							  CROSS JOIN
-							  (SELECT entity_id FROM entities
-												WHERE jid=%s) as e""",
-						   (resource,
-							state,
-							subscription_type,
-							subscription_depth,
-							self.nodeIdentifier,
-							userhost))
-							
-		except cursor._pool.dbapi.IntegrityError:
+			subscription = CouchStorage.Subscription(
+				node=self.nodeIdentifier,
+				entity=userhost,
+				resource=resource,
+				state=state,
+				subscription_type=subscription_type,
+				subscription_depth=subscription_depth,
+				)
+			subscription['_id'] = 'subscription' + KEY_SEPARATOR + self.nodeIdentifier + KEY_SEPARATOR + userhost + KEY_SEPARATOR + resource
+			subscription.save()
+		except Exception as e:
 			raise error.SubscriptionExists()
 
 
 	def removeSubscription(self, subscriber):
-		return self.dbpool.runInteraction(self._removeSubscription,
-										   subscriber)
+		return self._removeSubscription(subscriber)
 
-
-	def _removeSubscription(self, cursor, subscriber):
-		self._checkNodeExists(cursor)
+	def _removeSubscription(self, subscriber):
+		self._checkNodeExists()
 
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''
-
-		cursor.execute("""DELETE FROM subscriptions WHERE
-						  node_id=(SELECT node_id FROM nodes
-												  WHERE node=%s) AND
-						  entity_id=(SELECT entity_id FROM entities
-													  WHERE jid=%s) AND
-						  resource=%s""",
-					   (self.nodeIdentifier,
-						userhost,
-						resource))
-		if cursor.rowcount != 1:
+		key = CouchStorage.Subscription.key(node=self.nodeIdentifier, entity=userhost, resource=resource)
+		try:
+			subscription = CouchStorage.Subscription.get(
+				key
+				)
+		except:
 			raise error.NotSubscribed()
-
+		
 		return None
 
 
@@ -419,10 +448,11 @@ class Node:
 
 
 	def getAffiliations(self):
-		return self.dbpool.runInteraction(self._getAffiliations)
+		#return self.dbpool.runInteraction(self._getAffiliations)
+		return self.getAffiliations()
 
 
-	def _getAffiliations(self, cursor):
+	def _getAffiliations(self):
 		self._checkNodeExists(cursor)
 
 		cursor.execute("""SELECT jid, affiliation FROM nodes

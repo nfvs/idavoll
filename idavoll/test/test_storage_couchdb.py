@@ -51,53 +51,50 @@ class StorageTests:
 		d = self.s.getNode('pre-existing')
 		self._assignTestNode(d)
 
+	# ok
 	def test_interfaceIStorage(self):
 		self.assertTrue(verifyObject(iidavoll.IStorage, self.s))
 
-
+	# ok
 	def test_interfaceINode(self):
 		self.assertTrue(verifyObject(iidavoll.INode, self.node))
 
-
+	# ok
 	def test_interfaceILeafNode(self):
 		self.assertTrue(verifyObject(iidavoll.ILeafNode, self.node))
 
-
+	# ok
 	def test_getNode(self):
 		return self.s.getNode('pre-existing')
 
-
+	# ok
 	def test_getNonExistingNode(self):
 		self.assertRaises(error.NodeNotFound, lambda: self.s.getNode('non-existing'))
 
-
+	# ok
 	def test_getNodeIDs(self):
 		nodeIdentifiers = self.s.getNodeIds()
 		self.assertIn('pre-existing', nodeIdentifiers)
 		self.assertNotIn('non-existing', nodeIdentifiers)
 
-
+	# ok
 	def test_createExistingNode(self):
 		config = self.s.getDefaultConfiguration('leaf')
 		config['pubsub#node_type'] = 'leaf'
-		#d = self.s.createNode('pre-existing', OWNER, config)
 		self.assertRaises(error.NodeExists, lambda: self.s.createNode('pre-existing', OWNER, config))
 
-
+	# ok
 	def test_createNode(self):		
 		config = self.s.getDefaultConfiguration('leaf')
 		config['pubsub#node_type'] = 'leaf'
 		self.s.createNode('new 1', OWNER, config)
 		node_created = self.s.getNode('new 1')
 
-
-
+	# ok
 	def test_deleteNonExistingNode(self):
-		d = self.s.deleteNode('non-existing')
-		self.assertFailure(d, error.NodeNotFound)
-		return d
+		self.assertRaises(error.NodeNotFound, lambda: self.s.deleteNode('non-existing'))
 
-
+	# ok
 	def test_deleteNode(self):
 		d = self.s.deleteNode('to-be-deleted')
 		self.assertRaises(error.NodeNotFound, lambda: self.s.getNode('to-be-deleted'))
@@ -105,12 +102,8 @@ class StorageTests:
 
 
 	def test_getAffiliations(self):
-		def cb(affiliations):
-			self.assertIn(('pre-existing', 'owner'), affiliations)
-
-		d = self.s.getAffiliations(OWNER)
-		d.addCallback(cb)
-		return d
+		affiliations = self.s.getAffiliations(OWNER)
+		self.assertIn(('pre-existing', 'owner'), affiliations)
 
 
 	def test_getSubscriptions(self):
@@ -130,10 +123,11 @@ class StorageTests:
 
 	# Node tests
 
+	# ok
 	def test_getType(self):
 		self.assertEqual(self.node.getType(), 'leaf')
 
-
+	# ok
 	def test_getConfiguration(self):
 		config = self.node.getConfiguration()
 		self.assertIn('pubsub#persist_items', config.iterkeys())
@@ -141,32 +135,17 @@ class StorageTests:
 		self.assertEqual(config['pubsub#persist_items'], True)
 		self.assertEqual(config['pubsub#deliver_payloads'], True)
 
-
+	# ok
 	def test_setConfiguration(self):
-		def getConfig(node):
-			d = node.setConfiguration({'pubsub#persist_items': False})
-			d.addCallback(lambda _: node)
-			return d
+		node = self.s.getNode('to-be-reconfigured')
+		node.setConfiguration({'pubsub#persist_items': False})
+		config = node.getConfiguration()
+		self.assertEqual(config['pubsub#persist_items'], False)
+		node = self.s.getNode('to-be-reconfigured')
+		config = node.getConfiguration()
+		self.assertEqual(config['pubsub#persist_items'], False)
 
-		def checkObjectConfig(node):
-			config = node.getConfiguration()
-			self.assertEqual(config['pubsub#persist_items'], False)
-
-		def getNode(void):
-			return self.s.getNode('to-be-reconfigured')
-
-		def checkStorageConfig(node):
-			config = node.getConfiguration()
-			self.assertEqual(config['pubsub#persist_items'], False)
-
-		d = self.s.getNode('to-be-reconfigured')
-		d.addCallback(getConfig)
-		d.addCallback(checkObjectConfig)
-		d.addCallback(getNode)
-		d.addCallback(checkStorageConfig)
-		return d
-
-
+	# ok
 	def test_getMetaData(self):
 		metaData = self.node.getMetaData()
 		for key, value in self.node.getConfiguration().iteritems():
@@ -175,65 +154,43 @@ class StorageTests:
 		self.assertIn('pubsub#node_type', metaData.iterkeys())
 		self.assertEqual(metaData['pubsub#node_type'], 'leaf')
 
-
+	# ok
 	def test_getAffiliation(self):
-		def cb(affiliation):
-			self.assertEqual(affiliation, 'owner')
+		affiliation = self.node.getAffiliation(OWNER)
+		self.assertEqual(affiliation, 'owner')
 
-		d = self.node.getAffiliation(OWNER)
-		d.addCallback(cb)
-		return d
-
-
+	# ok
 	def test_getNonExistingAffiliation(self):
-		def cb(affiliation):
-			self.assertEqual(affiliation, None)
+		affiliation = self.node.getAffiliation(SUBSCRIBER)
+		self.assertEqual(affiliation, None)
 
-		d = self.node.getAffiliation(SUBSCRIBER)
-		d.addCallback(cb)
-		return d
-
-
+	# ok
 	def test_addSubscription(self):
-		def cb1(void):
-			return self.node.getSubscription(SUBSCRIBER_NEW)
+		self.node.addSubscription(SUBSCRIBER_NEW, 'pending', {})
+		subscription = self.node.getSubscription(SUBSCRIBER_NEW)
+		self.assertEqual(subscription.state, 'pending')
 
-		def cb2(subscription):
-			self.assertEqual(subscription.state, 'pending')
-
-		d = self.node.addSubscription(SUBSCRIBER_NEW, 'pending', {})
-		d.addCallback(cb1)
-		d.addCallback(cb2)
-		return d
-
-
+	# ok
 	def test_addExistingSubscription(self):
-		d = self.node.addSubscription(SUBSCRIBER, 'pending', {})
-		self.assertFailure(d, error.SubscriptionExists)
-		return d
+		self.assertRaises(error.SubscriptionExists, lambda: self.node.addSubscription(SUBSCRIBER, 'pending', {}))
 
-
+	# ok
 	def test_getSubscription(self):
-		def cb(subscriptions):
-			self.assertEquals(subscriptions[0].state, 'subscribed')
-			self.assertEquals(subscriptions[1].state, 'pending')
-			self.assertEquals(subscriptions[2], None)
 
-		d = defer.gatherResults([self.node.getSubscription(SUBSCRIBER),
+		subscriptions = defer.gatherResults([self.node.getSubscription(SUBSCRIBER),
 								 self.node.getSubscription(SUBSCRIBER_PENDING),
 								 self.node.getSubscription(OWNER)])
-		d.addCallback(cb)
-		return d
+		self.assertEquals(subscriptions[0].state, 'subscribed')
+		self.assertEquals(subscriptions[1].state, 'pending')
+		self.assertEquals(subscriptions[2], None)
 
-
+	# ok
 	def test_removeSubscription(self):
 		return self.node.removeSubscription(SUBSCRIBER_TO_BE_DELETED)
 
-
+	# ok
 	def test_removeNonExistingSubscription(self):
-		d = self.node.removeSubscription(OWNER)
-		self.assertFailure(d, error.NotSubscribed)
-		return d
+		self.assertRaises(error.NotSubscribed, lambda: self.node.removeSubscription(OWNER))
 
 
 	def test_getNodeSubscriptions(self):
@@ -425,6 +382,9 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 		
 
 	def init(self):
+		from idavoll.couchdb_storage import CouchStorage
+		
+		# nodes
 		config = self.s.getDefaultConfiguration('leaf')
 		config['pubsub#node_type'] = 'leaf'
 		config['pubsub#persist_items'] = True
@@ -432,6 +392,48 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 		self.s.createNode('to-be-deleted', OWNER, config)
 		self.s.createNode('to-be-reconfigured', OWNER, config)
 		self.s.createNode('to-be-purged', OWNER, config)
+		
+		# entities
+		#entity = CouchStorage.Entity(jid=OWNER.userhost())
+		#entity['_id'] = 'entity:' + OWNER.userhost()
+		#entity.save()
+		entity = CouchStorage.Entity(jid=SUBSCRIBER.userhost())
+		entity['_id'] = 'entity:' + SUBSCRIBER.userhost()
+		entity.save()
+		entity = CouchStorage.Entity(jid=SUBSCRIBER_TO_BE_DELETED.userhost())
+		entity['_id'] = 'entity:' + SUBSCRIBER_TO_BE_DELETED.userhost()
+		entity.save()
+		entity = CouchStorage.Entity(jid=SUBSCRIBER_PENDING.userhost())
+		entity['_id'] = 'entity:' + SUBSCRIBER_PENDING.userhost()
+		entity.save()
+		entity = CouchStorage.Entity(jid=PUBLISHER.userhost())
+		entity['_id'] = 'entity:' + PUBLISHER.userhost()
+		entity.save()
+
+		# affiliations
+		# aff = CouchStorage.Affiliation(node='pre-existing', entity=OWNER.userhost(), affiliation='owner')
+		# 		aff['_id'] = 'affiliation:' + OWNER.userhost() + ':' + 'pre-existing' + ':owner'
+		# 		aff.save()
+		
+		# subscriptions
+		subs = CouchStorage.Subscription(
+			node='pre-existing',
+			entity=SUBSCRIBER.userhost(),
+			resource=SUBSCRIBER.resource,
+			state='subscribed',
+			)
+		subs['_id'] = 'subscription:pre-existing:' + SUBSCRIBER.userhost() + ':' + SUBSCRIBER.resource
+		subs.save()
+		
+		subs['resource'] = SUBSCRIBER_TO_BE_DELETED.resource
+		subs['entity'] = SUBSCRIBER_TO_BE_DELETED.userhost()
+		subs['_id'] = 'subscription:pre-existing:' + SUBSCRIBER_TO_BE_DELETED.userhost() + ':' + SUBSCRIBER_TO_BE_DELETED.resource
+		subs.save()
+
+		subs['resource'] = SUBSCRIBER_PENDING.resource
+		subs['entity'] = SUBSCRIBER_PENDING.userhost()
+		subs['_id'] = 'subscription:pre-existing:' + SUBSCRIBER_PENDING.userhost() + ':' + SUBSCRIBER_PENDING.resource
+		subs.save()
 		
 
 try:
