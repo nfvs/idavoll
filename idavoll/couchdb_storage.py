@@ -2,11 +2,12 @@
 # See LICENSE for details.
 
 import copy
+import datetime
 
 from zope.interface import implements
 
 from restkit import SimplePool
-import restkit, logging
+#import restkit, logging
 
 from couchdbkit import *
 
@@ -17,25 +18,30 @@ from wokkel.pubsub import Subscription
 
 from idavoll import error, iidavoll
 
-# Data structures
-class NodeDoc(Document):
-	node = StringProperty()
-	node_type = StringProperty()
-	persist_items = BooleanProperty()
-	deliver_payloads = BooleanProperty()
-	send_last_published_item = StringProperty()
-
-class EntityDoc(Document):
-	jid = StringProperty()
-
-class AffiliationDoc(Document):
-	entity_id = StringProperty()
-	node_id = StringProperty()
-	affiliation = StringProperty()
+KEY_SEPARATOR = ':'
 
 
 # Main CouchDB Storage class
 class Storage:
+	
+	# Data structures
+	class Node(Document):
+		node = StringProperty()
+		node_type = StringProperty()
+		persist_items = BooleanProperty()
+		deliver_payloads = BooleanProperty()
+		send_last_published_item = StringProperty()
+		entities = ListProperty()
+		date = DateTimeProperty()
+
+	class Entity(Document):
+		jid = StringProperty()
+		nodes = ListProperty() # node affiliation list [{node, affiliation}]
+
+	class Affiliation(Document):
+		entity_id = StringProperty()
+		node_id = StringProperty()
+		affiliation = StringProperty()
 	
 	
 	implements(iidavoll.IStorage)
@@ -53,13 +59,13 @@ class Storage:
 	}
 
 	def __init__(self, dbpool):
-		restkit.set_logging(logging.WARNING);
+		#restkit.set_logging(logging.CRITICAL);
 		self.dbpool = dbpool
 		
 		# associate datastructures to the db
-		NodeDoc.set_db(self.dbpool)
-		EntityDoc.set_db(self.dbpool)
-		AffiliationDoc.set_db(self.dbpool)
+		self.Node.set_db(self.dbpool)
+		self.Entity.set_db(self.dbpool)
+		self.Affiliation.set_db(self.dbpool)
 
 
 	def getNode(self, nodeIdentifier):
@@ -69,12 +75,10 @@ class Storage:
 	def _getNode(self, nodeIdentifier):
 		configuration = {}
 		
-		node = NodeDoc.view('pubsub/nodes_by_node', key=nodeIdentifier)
-		
-		if node.count() == 0:
+		try:
+			node = self.Node.get('node%s%s' % (KEY_SEPARATOR, nodeIdentifier))
+		except ResourceNotFound:
 			raise error.NodeNotFound()
-
-		node = node.first()
 
 		if node.node_type == 'leaf':
 			configuration = {
@@ -102,58 +106,55 @@ class Storage:
 
 
 	def createNode(self, nodeIdentifier, owner, config):
-		return self._createNode(self, nodeIdentifier, owner, config)
+		return self._createNode(nodeIdentifier, owner, config)
 
-	def _createNode(self, cursor, nodeIdentifier, owner, config):
+	def _createNode(self, nodeIdentifier, owner, config):
 		if config['pubsub#node_type'] != 'leaf':
 			raise error.NoCollections()
 
 		owner = owner.userhost()
 		
 		# check if node exists
-		node = NodeDoc.view('pubsub/nodes_by_node', key=nodeIdentifier)
-		if node.count() > 0:
-			raise error.NodeExists()
-			
 		try:
-			node = NodeDoc(
-				node = nodeIdentifier,
+			node = self.Node.get('node%s%s' % (KEY_SEPARATOR, nodeIdentifier))
+			raise error.NodeExists()
+		except ResourceNotFound:
+			pass
+
+		try:
+			node = self.Node(
+				#node = nodeIdentifier,
 				node_type = 'leaf',
 				persist_items = config['pubsub#persist_items'],
 				deliver_payloads = config['pubsub#deliver_payloads'],
-				send_last_published_item = config['pubsub#send_last_published_item']
+				send_last_published_item = config['pubsub#send_last_published_item'],
+				entities = [{'jid': owner, 'affiliation': 'owner'}],
+				date = datetime.datetime.utcnow()
 				)
+			node['_id'] = 'node:' + nodeIdentifier
 			node.save()
 		except Exception as e:
-			print e
 			raise error.Error()
 
-		owner_entity = EntityDoc.view('pubsub/entities_by_jid', key=owner)
-		
-		# save entity
-		if owner_entity.count() == 0:
-			entity = EntityDoc(jid=owner)
+		# save entity / affiliation
+		try:
+			owner_entity = self.Entity.get('entity%s%s' % (KEY_SEPARATOR, owner))
+		except ResourceNotFound:
+			entity = self.Entity(jid=owner, nodes=[{'node': nodeIdentifier, 'affiliation': 'owner'}])
+			entity['_id'] = 'entity%s%s' % (KEY_SEPARATOR, owner)
 			entity.save()
-		
-		# affiliations
-		aff_node_id = NodeDoc.view('pubsub/nodes_by_node', key=nodeIdentifier).first()._id
-		aff_entity_id = EntityDoc.view('pubsub/entities_by_jid', key=owner).first()._id
-		affiliations = AffiliationDoc(
-			node_id=aff_node_id,
-			entity_id=aff_entity_id,
-			affiliation=owner
-			)
 
 	def deleteNode(self, nodeIdentifier):
-		return self.dbpool.runInteraction(self._deleteNode, nodeIdentifier)
+		return self._deleteNode(nodeIdentifier)
 
 
-	def _deleteNode(self, cursor, nodeIdentifier):
-		cursor.execute("""DELETE FROM nodes WHERE node=%s""",
-					   (nodeIdentifier,))
-
-		if cursor.rowcount != 1:
+	def _deleteNode(self, nodeIdentifier):
+		try:
+			node = self.Node.get('node%s%s' % (KEY_SEPARATOR, nodeIdentifier))
+			node.delete()
+		except:
 			raise error.NodeNotFound()
+			
 
 
 	def getAffiliations(self, entity):
@@ -345,6 +346,7 @@ class Node:
 		subscription_depth = config.get('pubsub#subscription_depth')
 
 		try:
+			# jid must be unique
 			cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
 						   (userhost,))
 		

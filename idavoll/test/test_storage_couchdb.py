@@ -49,9 +49,7 @@ class StorageTests:
 
 	def setUp(self):
 		d = self.s.getNode('pre-existing')
-		d.addCallback(self._assignTestNode)
-		return d
-
+		self._assignTestNode(d)
 
 	def test_interfaceIStorage(self):
 		self.assertTrue(verifyObject(iidavoll.IStorage, self.s))
@@ -70,17 +68,13 @@ class StorageTests:
 
 
 	def test_getNonExistingNode(self):
-		d = self.s.getNode('non-existing')
-		self.assertFailure(d, error.NodeNotFound)
-		return d
+		self.assertRaises(error.NodeNotFound, lambda: self.s.getNode('non-existing'))
 
 
 	def test_getNodeIDs(self):
-		def cb(nodeIdentifiers):
-			self.assertIn('pre-existing', nodeIdentifiers)
-			self.assertNotIn('non-existing', nodeIdentifiers)
-
-		return self.s.getNodeIds().addCallback(cb)
+		nodeIdentifiers = self.s.getNodeIds()
+		self.assertIn('pre-existing', nodeIdentifiers)
+		self.assertNotIn('non-existing', nodeIdentifiers)
 
 
 	def test_createExistingNode(self):
@@ -105,13 +99,8 @@ class StorageTests:
 
 
 	def test_deleteNode(self):
-		def cb(void):
-			d = self.s.getNode('to-be-deleted')
-			self.assertFailure(d, error.NodeNotFound)
-			return d
-
 		d = self.s.deleteNode('to-be-deleted')
-		d.addCallback(cb)
+		self.assertRaises(error.NodeNotFound, lambda: self.s.getNode('to-be-deleted'))
 		return d
 
 
@@ -426,6 +415,8 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 		
 		# upload initial docs
 		self.init()
+		
+		StorageTests.setUp(self)
 		
 	
 	def tearDown(self):
