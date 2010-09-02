@@ -209,18 +209,15 @@ class StorageTests:
 
 
 	def test_isSubscriber(self):
-		def cb(subscribed):
-			self.assertEquals(subscribed[0][1], True)
-			self.assertEquals(subscribed[1][1], True)
-			self.assertEquals(subscribed[2][1], False)
-			self.assertEquals(subscribed[3][1], False)
 
-		d = defer.DeferredList([self.node.isSubscribed(SUBSCRIBER),
-								self.node.isSubscribed(SUBSCRIBER.userhostJID()),
-								self.node.isSubscribed(SUBSCRIBER_PENDING),
-								self.node.isSubscribed(OWNER)])
-		d.addCallback(cb)
-		return d
+		subscribed = [self.node.isSubscribed(SUBSCRIBER),
+					  self.node.isSubscribed(SUBSCRIBER.userhostJID()),
+					  self.node.isSubscribed(SUBSCRIBER_PENDING),
+					  self.node.isSubscribed(OWNER)]
+		self.assertEquals(subscribed[0], True)
+		self.assertEquals(subscribed[1], True)
+		self.assertEquals(subscribed[2], False)
+		self.assertEquals(subscribed[3], False)
 
 
 	def test_storeItems(self):
@@ -385,18 +382,18 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 		from idavoll.couchdb_storage import CouchStorage
 		
 		# nodes
-		config = self.s.getDefaultConfiguration('leaf')
-		config['pubsub#node_type'] = 'leaf'
-		config['pubsub#persist_items'] = True
-		self.s.createNode('pre-existing', OWNER, config)
-		self.s.createNode('to-be-deleted', OWNER, config)
-		self.s.createNode('to-be-reconfigured', OWNER, config)
-		self.s.createNode('to-be-purged', OWNER, config)
+		node = CouchStorage.Node(node='pre-existing', node_type='leaf', persist_items=True)
+		node.save()
+		node = CouchStorage.Node(node='to-be-deleted')
+		node.save()
+		node = CouchStorage.Node(node='to-be-reconfigured')
+		node.save()
+		node = CouchStorage.Node(node='to-be-purged')
 		
 		# entities
-		#entity = CouchStorage.Entity(jid=OWNER.userhost())
-		#entity['_id'] = 'entity:' + OWNER.userhost()
-		#entity.save()
+		entity = CouchStorage.Entity(jid=OWNER.userhost())
+		entity['_id'] = 'entity:' + OWNER.userhost()
+		entity.save()
 		entity = CouchStorage.Entity(jid=SUBSCRIBER.userhost())
 		entity['_id'] = 'entity:' + SUBSCRIBER.userhost()
 		entity.save()
@@ -411,9 +408,8 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 		entity.save()
 
 		# affiliations
-		# aff = CouchStorage.Affiliation(node='pre-existing', entity=OWNER.userhost(), affiliation='owner')
-		# 		aff['_id'] = 'affiliation:' + OWNER.userhost() + ':' + 'pre-existing' + ':owner'
-		# 		aff.save()
+		aff = CouchStorage.Affiliation(node='pre-existing', entity=OWNER.userhost(), affiliation='owner')
+		aff.save()
 		
 		# subscriptions
 		subs = CouchStorage.Subscription(
@@ -422,17 +418,22 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 			resource=SUBSCRIBER.resource,
 			state='subscribed',
 			)
-		subs['_id'] = 'subscription:pre-existing:' + SUBSCRIBER.userhost() + ':' + SUBSCRIBER.resource
-		subs.save()
-		
-		subs['resource'] = SUBSCRIBER_TO_BE_DELETED.resource
-		subs['entity'] = SUBSCRIBER_TO_BE_DELETED.userhost()
-		subs['_id'] = 'subscription:pre-existing:' + SUBSCRIBER_TO_BE_DELETED.userhost() + ':' + SUBSCRIBER_TO_BE_DELETED.resource
 		subs.save()
 
-		subs['resource'] = SUBSCRIBER_PENDING.resource
-		subs['entity'] = SUBSCRIBER_PENDING.userhost()
-		subs['_id'] = 'subscription:pre-existing:' + SUBSCRIBER_PENDING.userhost() + ':' + SUBSCRIBER_PENDING.resource
+		subs = CouchStorage.Subscription(
+			node='pre-existing',
+			entity=SUBSCRIBER_TO_BE_DELETED.userhost(),
+			resource=SUBSCRIBER_TO_BE_DELETED.resource,
+			state='subscribed',
+			)
+		subs.save()
+
+		subs = CouchStorage.Subscription(
+			node='pre-existing',
+			entity=SUBSCRIBER_PENDING.userhost(),
+			resource=SUBSCRIBER_PENDING.resource,
+			state='pending',
+			)
 		subs.save()
 		
 

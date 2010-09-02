@@ -31,17 +31,44 @@ class CouchStorage:
 		send_last_published_item = StringProperty()
 		#entities = ListProperty()
 		date = DateTimeProperty()
+		
+		def save(self):
+			if self.node_type is None:
+				self.node_type = 'leaf'
+			if self.deliver_payloads is None:
+				self.deliver_payloads = True
+			if self.send_last_published_item is None:
+				self.send_last_published_item = 'on_sub'	
+			if self['_id'] is None:
+				self['_id'] = self.key(node=self.node)
+				
+			return Document.save(self)
+		
+		def key(self):
+			return self.key(node=self.node)
+
+		@staticmethod
+		def key(node=''):
+			return 'node' + KEY_SEPARATOR + node
 
 	class Entity(Document):
 		doc_type = 'entity'
 		jid = StringProperty()
 		nodes = ListProperty() # node affiliation list [{node, affiliation}]
 
+		def save(self):
+			self['_id'] = 'entity' + KEY_SEPARATOR + self.jid
+			Document.save(self)
+
 	class Affiliation(Document):
 		doc_type = 'affiliation'
 		entity = StringProperty()
 		node = StringProperty()
 		affiliation = StringProperty()
+		
+		def save(self):
+			self['_id'] = 'affiliation' + KEY_SEPARATOR + self.entity + KEY_SEPARATOR + self.node + KEY_SEPARATOR + self.affiliation
+			Document.save(self)
 		
 		def key(self):
 			return self.key(node=self.node, entity=self.entity, affiliation=self.affiliation)
@@ -57,6 +84,13 @@ class CouchStorage:
 		resource = StringProperty()
 		subscription_type = StringProperty()
 		subscription_depth = StringProperty()
+		
+		def save(self):
+			if self.state is None:
+				self.state = 'subscribed'
+			if self['_id'] is None:
+				self['_id'] = self.key(node=self.node, entity=self.entity, resource=self.resource)
+			return Document.save(self)
 		
 		def key(self):
 			return self.key(node=self.node, entity=self.entity, resource=self.resource)
@@ -105,9 +139,8 @@ class Storage:
 	def _getNode(self, nodeIdentifier):
 		configuration = {}
 		
-
 		try:
-			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + nodeIdentifier)
+			node = CouchStorage.Node.get(CouchStorage.Node.key(node=nodeIdentifier))
 		except ResourceNotFound:
 			raise error.NodeNotFound()
 
@@ -119,14 +152,13 @@ class Storage:
 			
 			return_node = LeafNode(nodeIdentifier, configuration)
 			return_node.dbpool = self.dbpool
-			return return_node
 		elif node.node_type == 'collection':
 			configuration = {
 					'pubsub#deliver_payloads': node.deliver_payloads,
 					'pubsub#send_last_published_item': node.send_last_published_item}
 			return_node = CollectionNode(nodeIdentifier, configuration)
 			return_node.dbpool = self.dbpool
-			return return_node
+		return return_node
 
 
 
@@ -163,7 +195,6 @@ class Storage:
 				#entities = [{'jid': owner, 'affiliation': 'owner'}],
 				date = datetime.datetime.utcnow()
 				)
-			node['_id'] = 'node' + KEY_SEPARATOR + nodeIdentifier
 			node.save()
 		except Exception as e:
 			print e
@@ -174,7 +205,6 @@ class Storage:
 			owner_entity = CouchStorage.Entity.get('entity' + KEY_SEPARATOR + owner)
 		except:
 			entity = CouchStorage.Entity(jid=owner)
-			entity['_id'] = 'entity' + KEY_SEPARATOR + owner
 			entity.save()			
 			pass
 			
@@ -275,9 +305,9 @@ class Node:
 		
 		try:
 			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + self.nodeIdentifier)
-			node['persist_items'] = config["pubsub#persist_items"]
-			node['deliver_payloads'] = config["pubsub#deliver_payloads"]
-			node['send_last_published_item'] = config["pubsub#send_last_published_item"]
+			node.persist_items = config["pubsub#persist_items"]
+			node.deliver_payloads = config["pubsub#deliver_payloads"]
+			node.send_last_published_item = config["pubsub#send_last_published_item"]
 			node.save() # update
 		except Exception as e:
 			raise error.NodeNotFound()
@@ -404,7 +434,6 @@ class Node:
 				subscription_type=subscription_type,
 				subscription_depth=subscription_depth,
 				)
-			subscription['_id'] = 'subscription' + KEY_SEPARATOR + self.nodeIdentifier + KEY_SEPARATOR + userhost + KEY_SEPARATOR + resource
 			subscription.save()
 		except Exception as e:
 			raise error.SubscriptionExists()
@@ -430,21 +459,23 @@ class Node:
 
 
 	def isSubscribed(self, entity):
-		return self.dbpool.runInteraction(self._isSubscribed, entity)
+		#return self.dbpool.runInteraction(self._isSubscribed, entity)
+		return self._isSubscribed(entity)
 
 
-	def _isSubscribed(self, cursor, entity):
-		self._checkNodeExists(cursor)
-
-		cursor.execute("""SELECT 1 FROM entities
-						  NATURAL JOIN subscriptions
-						  NATURAL JOIN nodes
-						  WHERE entities.jid=%s
-						  AND node=%s AND state='subscribed'""",
-					   (entity.userhost(),
-					   self.nodeIdentifier))
-
-		return cursor.fetchone() is not None
+	def _isSubscribed(self, entity):
+		self._checkNodeExists()
+		
+		subscriptions = CouchStorage.Subscription.view(
+			'pubsub/subscriptions_by_entity',
+			startkey=[entity.userhost(), self.nodeIdentifier, 'subscribed'],
+			endkey=[entity.userhost(), self.nodeIdentifier, 'subscribed', {}],
+			)
+		
+		if subscriptions.count() > 0:
+			return True
+		else:
+			return False
 
 
 	def getAffiliations(self):
