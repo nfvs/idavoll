@@ -100,25 +100,21 @@ class StorageTests:
 		self.assertRaises(error.NodeNotFound, lambda: self.s.getNode('to-be-deleted'))
 		return d
 
-
+	# ok
 	def test_getAffiliations(self):
 		affiliations = self.s.getAffiliations(OWNER)
 		self.assertIn(('pre-existing', 'owner'), affiliations)
 
-
+	# ok
 	def test_getSubscriptions(self):
-		def cb(subscriptions):
-			found = False
-			for subscription in subscriptions:
-				if (subscription.nodeIdentifier == 'pre-existing' and
-					subscription.subscriber == SUBSCRIBER and
-					subscription.state == 'subscribed'):
-					found = True
-			self.assertTrue(found)
-
-		d = self.s.getSubscriptions(SUBSCRIBER)
-		d.addCallback(cb)
-		return d
+		subscriptions = self.s.getSubscriptions(SUBSCRIBER)
+		found = False
+		for subscription in subscriptions:
+			if (subscription.nodeIdentifier == 'pre-existing' and
+				subscription.subscriber == SUBSCRIBER and
+				subscription.state == 'subscribed'):
+				found = True
+		self.assertTrue(found)
 
 
 	# Node tests
@@ -177,9 +173,9 @@ class StorageTests:
 	# ok
 	def test_getSubscription(self):
 
-		subscriptions = defer.gatherResults([self.node.getSubscription(SUBSCRIBER),
-								 self.node.getSubscription(SUBSCRIBER_PENDING),
-								 self.node.getSubscription(OWNER)])
+		subscriptions = [self.node.getSubscription(SUBSCRIBER),
+						 self.node.getSubscription(SUBSCRIBER_PENDING),
+						 self.node.getSubscription(OWNER)]
 		self.assertEquals(subscriptions[0].state, 'subscribed')
 		self.assertEquals(subscriptions[1].state, 'pending')
 		self.assertEquals(subscriptions[2], None)
@@ -192,22 +188,15 @@ class StorageTests:
 	def test_removeNonExistingSubscription(self):
 		self.assertRaises(error.NotSubscribed, lambda: self.node.removeSubscription(OWNER))
 
-
+	# ok
 	def test_getNodeSubscriptions(self):
-		def extractSubscribers(subscriptions):
-			return [subscription.subscriber for subscription in subscriptions]
+		subscriptions = self.node.getSubscriptions('subscribed')
+		subscribers = [subscription.subscriber for subscription in subscriptions]
+		self.assertIn(SUBSCRIBER, subscribers)
+		self.assertNotIn(SUBSCRIBER_PENDING, subscribers)
+		self.assertNotIn(OWNER, subscribers)
 
-		def cb(subscribers):
-			self.assertIn(SUBSCRIBER, subscribers)
-			self.assertNotIn(SUBSCRIBER_PENDING, subscribers)
-			self.assertNotIn(OWNER, subscribers)
-
-		d = self.node.getSubscriptions('subscribed')
-		d.addCallback(extractSubscribers)
-		d.addCallback(cb)
-		return d
-
-
+	# ok
 	def test_isSubscriber(self):
 
 		subscribed = [self.node.isSubscribed(SUBSCRIBER),
@@ -219,126 +208,68 @@ class StorageTests:
 		self.assertEquals(subscribed[2], False)
 		self.assertEquals(subscribed[3], False)
 
-
+	# ok
 	def test_storeItems(self):
-		def cb1(void):
-			return self.node.getItemsById(['new'])
+		self.node.storeItems([ITEM_NEW], PUBLISHER)
+		result = self.node.getItemsById(['new'])
+		self.assertEqual(ITEM_NEW.toXml(), result[0].toXml())
 
-		def cb2(result):
-			self.assertEqual(ITEM_NEW.toXml(), result[0].toXml())
-
-		d = self.node.storeItems([ITEM_NEW], PUBLISHER)
-		d.addCallback(cb1)
-		d.addCallback(cb2)
-		return d
-
-
+	# ok
 	def test_storeUpdatedItems(self):
-		def cb1(void):
-			return self.node.getItemsById(['current'])
-
-		def cb2(result):
-			self.assertEqual(ITEM_UPDATED.toXml(), result[0].toXml())
-
 		d = self.node.storeItems([ITEM_UPDATED], PUBLISHER)
-		d.addCallback(cb1)
-		d.addCallback(cb2)
-		return d
+		result = self.node.getItemsById(['current'])
+		self.assertEqual(ITEM_UPDATED.toXml(), result[0].toXml())
 
-
+	# ok (FIXME)
 	def test_removeItems(self):
-		def cb1(result):
-			self.assertEqual(['to-be-deleted'], result)
-			return self.node.getItemsById(['to-be-deleted'])
+		result = self.node.removeItems(['to-be-deleted', 'to-be-deleted2'])
+		self.assertEqual(['to-be-deleted', 'to-be-deleted2'], result)
+		result = self.node.getItemsById(['to-be-deleted'])
+		self.assertEqual(0, len(result))
+		result = self.node.getItemsById(['to-be-deleted2'])
+		self.assertEqual(0, len(result))
 
-		def cb2(result):
-			self.assertEqual(0, len(result))
-
-		d = self.node.removeItems(['to-be-deleted'])
-		d.addCallback(cb1)
-		d.addCallback(cb2)
-		return d
-
-
+	# ok
 	def test_removeNonExistingItems(self):
-		def cb(result):
-			self.assertEqual([], result)
+		result = self.node.removeItems(['non-existing'])
+		self.assertEqual([], result)
 
-		d = self.node.removeItems(['non-existing'])
-		d.addCallback(cb)
-		return d
-
-
+	# ok
 	def test_getItems(self):
-		def cb(result):
-			items = [item.toXml() for item in result]
-			self.assertIn(ITEM.toXml(), items)
-
-		d = self.node.getItems()
-		d.addCallback(cb)
-		return d
+		result = self.node.getItems()
+		items = [item.toXml() for item in result]
+		self.assertIn(ITEM.toXml(), items)
 
 
+	# ok
 	def test_lastItem(self):
-		def cb(result):
-			self.assertEqual(1, len(result))
-			self.assertEqual(ITEM.toXml(), result[0].toXml())
+		result = self.node.getItems(1)
+		self.assertEqual(1, len(result))
+		self.assertEqual(ITEM.toXml(), result[0].toXml())
 
-		d = self.node.getItems(1)
-		d.addCallback(cb)
-		return d
-
-
+	# ok
 	def test_getItemsById(self):
-		def cb(result):
-			self.assertEqual(1, len(result))
+		result = self.node.getItemsById(['current'])
+		self.assertEqual(1, len(result))
 
-		d = self.node.getItemsById(['current'])
-		d.addCallback(cb)
-		return d
-
-
+	# ok
 	def test_getNonExistingItemsById(self):
-		def cb(result):
-			self.assertEqual(0, len(result))
+		result = self.node.getItemsById(['non-existing'])
+		self.assertEqual(0, len(result))
 
-		d = self.node.getItemsById(['non-existing'])
-		d.addCallback(cb)
-		return d
-
-
+	# ok (FIXME: bulk_delete)
 	def test_purge(self):
-		def cb1(node):
-			d = node.purge()
-			d.addCallback(lambda _: node)
-			return d
+		node = self.s.getNode('to-be-purged')
+		node.purge()
+		result = node.getItems()
+		self.assertEqual([], result)
 
-		def cb2(node):
-			return node.getItems()
-
-		def cb3(result):
-			self.assertEqual([], result)
-
-		d = self.s.getNode('to-be-purged')
-		d.addCallback(cb1)
-		d.addCallback(cb2)
-		d.addCallback(cb3)
-		return d
-
-
+	# ok
 	def test_getNodeAffilatiations(self):
-		def cb1(node):
-			return node.getAffiliations()
-
-		def cb2(affiliations):
-			affiliations = dict(((a[0].full(), a[1]) for a in affiliations))
-			self.assertEquals(affiliations[OWNER.full()], 'owner')
-
-		d = self.s.getNode('pre-existing')
-		d.addCallback(cb1)
-		d.addCallback(cb2)
-		return d
-
+		node = self.s.getNode('pre-existing')
+		affiliations = node.getAffiliations()
+		affiliations = dict(((a[0].full(), a[1]) for a in affiliations))
+		self.assertEquals(affiliations[OWNER.full()], 'owner')
 
 
 
@@ -389,6 +320,7 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 		node = CouchStorage.Node(node='to-be-reconfigured')
 		node.save()
 		node = CouchStorage.Node(node='to-be-purged')
+		node.save()
 		
 		# entities
 		entity = CouchStorage.Entity(jid=OWNER.userhost())
@@ -435,6 +367,40 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 			state='pending',
 			)
 		subs.save()
+		
+		#items
+		
+		# pre-existing:to-be-deleted & pre-existing:to-be-deleted2
+		item = CouchStorage.Item(
+			node='pre-existing',
+			publisher=PUBLISHER.userhost(),
+			item_id='to-be-deleted',
+			data=ITEM_TO_BE_DELETED.toXml(),
+			)
+		item.save()
+		item = CouchStorage.Item(
+			node='pre-existing',
+			publisher=PUBLISHER.userhost(),
+			item_id='to-be-deleted2',
+			data=ITEM_TO_BE_DELETED.toXml(),
+			)
+		item.save()
+		
+		item = CouchStorage.Item(
+			node='to-be-purged',
+			publisher=PUBLISHER.userhost(),
+			item_id='to-be-deleted',
+			data=ITEM_TO_BE_DELETED.toXml(),
+			)
+		item.save()
+		
+		item = CouchStorage.Item(
+			node='pre-existing',
+			publisher=PUBLISHER.userhost(),
+			item_id='current',
+			data=ITEM.toXml(),
+			)
+		item.save()
 		
 
 try:

@@ -7,7 +7,7 @@ import datetime
 from zope.interface import implements
 
 from restkit import SimplePool
-#import restkit, logging
+import restkit, logging
 
 from couchdbkit import *
 
@@ -57,8 +57,15 @@ class CouchStorage:
 		nodes = ListProperty() # node affiliation list [{node, affiliation}]
 
 		def save(self):
-			self['_id'] = 'entity' + KEY_SEPARATOR + self.jid
+			self['_id'] = self.key(jid=self.jid)
 			Document.save(self)
+		
+		def key(self):
+			return self.key(jid=self.jid)
+
+		@staticmethod
+		def key(jid=''):
+			return 'entity' + KEY_SEPARATOR + jid
 
 	class Affiliation(Document):
 		doc_type = 'affiliation'
@@ -98,7 +105,28 @@ class CouchStorage:
 		@staticmethod
 		def key(node='', entity='', resource=''):
 			return 'subscription' + KEY_SEPARATOR + node + KEY_SEPARATOR + entity + KEY_SEPARATOR + resource
-
+	
+	class Item(Document):
+		doc_type = 'item'
+		item_id = StringProperty()
+		node = StringProperty()
+		publisher = StringProperty()
+		data = StringProperty()
+		date = DateTimeProperty()
+		
+		def save(self):
+			if self.date is None:
+				self.date = datetime.datetime.utcnow()
+			if self['_id'] is None:
+				self['_id'] = self.key(node=self.node, item_id=self.item_id)
+			return Document.save(self)
+		
+		def key(self):
+			return self.key(node=self.node, item_id=self.item_id)
+			
+		@staticmethod
+		def key(node='', item_id=''):
+			return 'item' + KEY_SEPARATOR + node + KEY_SEPARATOR + item_id
 
 
 # Main CouchDB Storage class
@@ -122,7 +150,7 @@ class Storage:
 	}
 
 	def __init__(self, dbpool):
-		#restkit.set_logging(logging.CRITICAL);
+		#restkit.set_logging(logging.ERROR);
 		self.dbpool = dbpool
 		
 		# associate datastructures to the db
@@ -130,6 +158,7 @@ class Storage:
 		CouchStorage.Entity.set_db(self.dbpool)
 		CouchStorage.Affiliation.set_db(self.dbpool)
 		CouchStorage.Subscription.set_db(self.dbpool)
+		CouchStorage.Item.set_db(self.dbpool)
 
 
 	def getNode(self, nodeIdentifier):
@@ -161,11 +190,10 @@ class Storage:
 		return return_node
 
 
-
 	def getNodeIds(self):
 		nodes = CouchStorage.Node.view('pubsub/nodes_by_node')
 		result = []
-		for node in nodes.iterator():
+		for node in nodes.iterator(): # fixme
 			result.append(node.node)
 		return result
 
@@ -179,12 +207,6 @@ class Storage:
 
 		owner = owner.userhost()
 		
-		# check if node exists
-		node = CouchStorage.Node.view('pubsub/nodes_by_node', key=nodeIdentifier)
-		 
-		if node.count() > 0:
-			raise error.NodeExists()
-
 		try:
 			node = CouchStorage.Node(
 				node = nodeIdentifier,
@@ -196,8 +218,9 @@ class Storage:
 				date = datetime.datetime.utcnow()
 				)
 			node.save()
+		except ResourceConflict:
+			raise error.NodeExists
 		except Exception as e:
-			print e
 			raise error.Error()
 
 		# save entity
@@ -237,28 +260,27 @@ class Storage:
 			'pubsub/affiliations_by_entity',
 			key=entity.userhost(),
 			)
-		
+
 		return [ tuple(a['value']) for a in affiliations]
 
 
 	def getSubscriptions(self, entity):
-		def toSubscriptions(rows):
+		def toSubscriptions(db_subscriptions):
 			subscriptions = []
-			for row in rows:
-				subscriber = jid.internJID('%s/%s' % (row[1],
-													  row[2]))
-				subscription = Subscription(row[0], subscriber, row[3])
+			for db_subscription in db_subscriptions:
+				subscriber = jid.internJID('%s/%s' % (db_subscription.entity,
+													  db_subscription.resource))
+				subscription = Subscription(db_subscription.node, subscriber, db_subscription.state)
 				subscriptions.append(subscription)
 			return subscriptions
 
-		d = self.dbpool.runQuery("""SELECT node, jid, resource, state
-									 FROM entities
-									 NATURAL JOIN subscriptions
-									 NATURAL JOIN nodes
-									 WHERE jid=%s""",
-								  (entity.userhost(),))
-		d.addCallback(toSubscriptions)
-		return d
+		subscriptions = CouchStorage.Subscription.view(
+			'pubsub/subscriptions_by_entity',
+			startkey=[entity.userhost()],
+			endkey=[entity.userhost(), {}, {}],
+			)
+		#print subscriptions.all()
+		return toSubscriptions(subscriptions.all())
 
 
 	def getDefaultConfiguration(self, nodeType):
@@ -366,39 +388,37 @@ class Node:
 
 
 	def getSubscriptions(self, state=None):
-		return self.dbpool.runInteraction(self._getSubscriptions, state)
+		#return self.dbpool.runInteraction(self._getSubscriptions, state)
+		return self._getSubscriptions(state)
 
 
-	def _getSubscriptions(self, cursor, state):
-		self._checkNodeExists(cursor)
-
-		query = """SELECT jid, resource, state,
-						  subscription_type, subscription_depth
-				   FROM subscriptions
-				   NATURAL JOIN nodes
-				   NATURAL JOIN entities
-				   WHERE node=%s""";
-		values = [self.nodeIdentifier]
-
+	def _getSubscriptions(self, state):
+		self._checkNodeExists()
+		
 		if state:
-			query += " AND state=%s"
-			values.append(state)
-
-		cursor.execute(query, values);
-		rows = cursor.fetchall()
+			db_subscriptions = CouchStorage.Subscription.view(
+				'pubsub/subscriptions_by_node_state',
+				key=[self.nodeIdentifier, state]
+				)
+		else:
+			db_subscriptions = CouchStorage.Subscription.view(
+				'pubsub/subscriptions_by_node_state',
+				startkey=[self.nodeIdentifier],
+				endkey=[self.nodeIdentifier, {}]
+				)
 
 		subscriptions = []
-		for row in rows:
-			subscriber = jid.JID('%s/%s' % (row[0], row[1]))
+		for subscription in db_subscriptions:
+			subscriber = jid.JID('%s/%s' % (subscription.entity, subscription.resource))
 
 			options = {}
-			if row[3]:
-				options['pubsub#subscription_type'] = row[3];
-			if row[4]:
-				options['pubsub#subscription_depth'] = row[4];
+			if subscription.subscription_type:
+				options['pubsub#subscription_type'] = subscription_type;
+			if subscription.subscription_depth:
+				options['pubsub#subscription_depth'] = subscription_depth;
 
 			subscriptions.append(Subscription(self.nodeIdentifier, subscriber,
-											  row[2], options))
+											  subscription.state, options))
 
 		return subscriptions
 
@@ -466,6 +486,7 @@ class Node:
 	def _isSubscribed(self, entity):
 		self._checkNodeExists()
 		
+		# TODO: dont return docs, only keys
 		subscriptions = CouchStorage.Subscription.view(
 			'pubsub/subscriptions_by_entity',
 			startkey=[entity.userhost(), self.nodeIdentifier, 'subscribed'],
@@ -480,21 +501,19 @@ class Node:
 
 	def getAffiliations(self):
 		#return self.dbpool.runInteraction(self._getAffiliations)
-		return self.getAffiliations()
+		return self._getAffiliations()
 
 
 	def _getAffiliations(self):
-		self._checkNodeExists(cursor)
-
-		cursor.execute("""SELECT jid, affiliation FROM nodes
-						  NATURAL JOIN affiliations
-						  NATURAL JOIN entities
-						  WHERE node=%s""",
-					   (self.nodeIdentifier,))
-		result = cursor.fetchall()
-
-		return [(jid.internJID(r[0]), r[1]) for r in result]
-
+		self._checkNodeExists()
+		
+		affiliations = CouchStorage.Affiliation.view(
+			'pubsub/affiliations_by_node',
+			key=self.nodeIdentifier,
+			)
+			
+		affiliations = affiliations.all()
+		return [(jid.internJID(r['value'][0]), r['value'][1]) for r in affiliations]
 
 
 class LeafNode(Node):
@@ -504,111 +523,140 @@ class LeafNode(Node):
 	nodeType = 'leaf'
 
 	def storeItems(self, items, publisher):
-		return self.dbpool.runInteraction(self._storeItems, items, publisher)
+		#return self.dbpool.runInteraction(self._storeItems, items, publisher)
+		return self._storeItems(items, publisher)
 
 
-	def _storeItems(self, cursor, items, publisher):
-		self._checkNodeExists(cursor)
+	def _storeItems(self, items, publisher):
+		self._checkNodeExists()
+		
 		for item in items:
-			self._storeItem(cursor, item, publisher)
+			self._storeItem(item, publisher)
 
 
-	def _storeItem(self, cursor, item, publisher):
+	def _storeItem(self, item, publisher):
 		data = item.toXml()
-		cursor.execute("""UPDATE items SET date=now(), publisher=%s, data=%s
-						  FROM nodes
-						  WHERE nodes.node_id = items.node_id AND
-								nodes.node = %s and items.item=%s""",
-					   (publisher.full(),
-						data,
-						self.nodeIdentifier,
-						item["id"]))
-		if cursor.rowcount == 1:
-			return
-
-		cursor.execute("""INSERT INTO items (node_id, item, publisher, data)
-						  SELECT node_id, %s, %s, %s FROM nodes
-													 WHERE node=%s""",
-					   (item["id"],
-						publisher.full(),
-						data,
-						self.nodeIdentifier))
-
+		
+		# try updating existing item;
+		# if it doesnt exist, create a new one
+		try:
+			item = CouchStorage.Item.get(
+				CouchStorage.Item.key(item_id=item['id'], node=self.nodeIdentifier)
+				)
+			item.publisher = publisher.full()
+			item.data = data
+			item.save()
+		except ResourceNotFound:
+			# create new item
+			item = CouchStorage.Item(
+				item_id = item['id'],
+				node = self.nodeIdentifier,
+				publisher = publisher.full(),
+				data = data
+				)
+			item.save()
+		
 
 	def removeItems(self, itemIdentifiers):
-		return self.dbpool.runInteraction(self._removeItems, itemIdentifiers)
+		#return self.dbpool.runInteraction(self._removeItems, itemIdentifiers)
+		return self._removeItems(itemIdentifiers)
 
 
-	def _removeItems(self, cursor, itemIdentifiers):
-		self._checkNodeExists(cursor)
+	# FIXME: bulk_delete returns None
+	# currently function returns itemIdentifiers, should return only the deleted docs
+	def _removeItems(self, itemIdentifiers):
+		self._checkNodeExists()
 
 		deleted = []
+		
+		keys =  [[self.nodeIdentifier, i] for i in itemIdentifiers]
 
-		for itemIdentifier in itemIdentifiers:
-			cursor.execute("""DELETE FROM items WHERE
-							  node_id=(SELECT node_id FROM nodes
-													  WHERE node=%s) AND
-							  item=%s""",
-						   (self.nodeIdentifier,
-							itemIdentifier))
+		items = CouchStorage.Item.view(
+			'pubsub/items_by_node',
+			keys=keys
+			)
+		
+		items = [i.to_json() for i in items]
+		
+		if not items:
+			return []
 
-			if cursor.rowcount:
-				deleted.append(itemIdentifier)
-
-		return deleted
+		try:
+			response = self.dbpool.bulk_delete(items) # FIXME: returns None (why?)
+			#response = CouchStorage.Item.bulk_save(items)
+			return itemIdentifiers
+		except Exception as e:
+			print e
+			return []
+			
+		return itemIdentifiers
 
 
 	def getItems(self, maxItems=None):
-		return self.dbpool.runInteraction(self._getItems, maxItems)
+		#return self.dbpool.runInteraction(self._getItems, maxItems)
+		return self._getItems(maxItems)
 
 
-	def _getItems(self, cursor, maxItems):
-		self._checkNodeExists(cursor)
-		query = """SELECT data FROM nodes
-				   NATURAL JOIN items
-				   WHERE node=%s ORDER BY date DESC"""
+	def _getItems(self, maxItems):
+		self._checkNodeExists()
+		
 		if maxItems:
-			cursor.execute(query + " LIMIT %s",
-						   (self.nodeIdentifier,
-							maxItems))
+			items = CouchStorage.Item.view(
+				'pubsub/items_by_node_date',
+				startkey=[self.nodeIdentifier],
+				endkey=[self.nodeIdentifier, {}, {}],
+				limit=maxItems
+				)
 		else:
-			cursor.execute(query, (self.nodeIdentifier,))
-
-		result = cursor.fetchall()
-		items = [stripNamespace(parseXml(r[0])) for r in result]
-		return items
+			items = CouchStorage.Item.view(
+				'pubsub/items_by_node_date',
+				startkey=[self.nodeIdentifier],
+				endkey=[self.nodeIdentifier, {}, {}],
+				)
+				
+		elements = [parseXml(i.data.encode('utf-8')) for i in items]
+		return elements
 
 
 	def getItemsById(self, itemIdentifiers):
-		return self.dbpool.runInteraction(self._getItemsById, itemIdentifiers)
+		#return self.dbpool.runInteraction(self._getItemsById, itemIdentifiers)
+		return self._getItemsById(itemIdentifiers)
 
 
-	def _getItemsById(self, cursor, itemIdentifiers):
-		self._checkNodeExists(cursor)
-		items = []
-		for itemIdentifier in itemIdentifiers:
-			cursor.execute("""SELECT data FROM nodes
-							  NATURAL JOIN items
-							  WHERE node=%s AND item=%s""",
-						   (self.nodeIdentifier,
-							itemIdentifier))
-			result = cursor.fetchone()
-			if result:
-				items.append(parseXml(result[0]))
-		return items
+	def _getItemsById(self, itemIdentifiers):
+		self._checkNodeExists()
+		
+		keys = [[self.nodeIdentifier, i] for i in itemIdentifiers]
+
+		items = CouchStorage.Item.view(
+			'pubsub/items_by_node',
+			keys=keys
+		)
+		#print items.all()
+		values = [parseXml(i.data.encode('utf-8')) for i in items.all()]
+		return values
 
 
 	def purge(self):
-		return self.dbpool.runInteraction(self._purge)
+		#return self.dbpool.runInteraction(self._purge)
+		self._purge()
 
 
-	def _purge(self, cursor):
-		self._checkNodeExists(cursor)
+	def _purge(self):
+		self._checkNodeExists()
 
-		cursor.execute("""DELETE FROM items WHERE
-						  node_id=(SELECT node_id FROM nodes WHERE node=%s)""",
-					   (self.nodeIdentifier,))
+		items = CouchStorage.Item.view(
+			'pubsub/items_by_node',
+			startkey=[self.nodeIdentifier],
+			endkey=[self.nodeIdentifier, {}]
+			)
+		items = [i.to_json() for i in items]
 
+		try:
+			response = self.dbpool.bulk_delete(items) # FIXME: returns None (why?)
+		except Exception as e:
+			print e
+		
 
 class CollectionNode(Node):
 
