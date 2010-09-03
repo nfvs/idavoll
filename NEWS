@@ -1,3 +1,11 @@
+0.9.2 (2010-09-03)
+==================
+
+- new CouchDB storage engine
+- fixed 403 unauthorized when creating nodes using memory_storage
+- converted postgresql engine pyPgSQL to psycopg2
+
+
 0.9.1 (2009-09-07)
 ==================
 
