@@ -8,7 +8,7 @@ Tests for L{idavoll.memory_storage} and L{idavoll.pgsql_storage}.
 from zope.interface.verify import verifyObject
 from twisted.trial import unittest
 from twisted.words.protocols.jabber import jid
-from twisted.internet import defer
+from twisted.internet import defer, threads
 from twisted.words.xish import domish
 
 from wokkel import pubsub
@@ -463,9 +463,8 @@ class PgsqlStorageStorageTestCase(unittest.TestCase, StorageTests):
 
 
 	def tearDown(self):
-		#return self.dbpool.runInteraction(self.cleandb)
-		self.cleandb
-		return self.dbpool.close()
+		d = self.dbpool.runInteraction(self.cleandb)
+		return d.addCallback(self.dbpool.close)
 
 
 	def init(self, cursor):
@@ -551,6 +550,139 @@ class PgsqlStorageStorageTestCase(unittest.TestCase, StorageTests):
 		cursor.execute("""DELETE FROM entities WHERE jid=%s""",
 					   (PUBLISHER.userhost(),))
 		
+
+class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
+
+	def setUp(self):
+		from idavoll.couchdb_storage import Storage
+		from restkit import SimplePool
+		from couchdbkit import Server
+
+		# threadpool
+		#self.thread_pool = ThreadPool()
+
+		# set a threadsafe pool to keep 2 connections alives
+		self.pool = SimplePool(keepalive=2)
+		self.server = Server('http://localhost:5984/',
+						pool_instance=self.pool)
+		# DEBUG: remove
+		try:
+			self.server.delete_db('pubsub_test')
+		except:
+			pass
+
+		self.db = self.server.get_or_create_db('pubsub_test')
+		self.s = Storage(self.db)
+
+		# upload design docs
+		from couchdbkit.loaders import FileSystemDocsLoader
+		loader = FileSystemDocsLoader('../../db/couchdb')
+		loader.sync(self.db, verbose=True)
+
+		# upload initial docs
+		d = threads.deferToThread(self.init)
+		d.addCallback(lambda _: StorageTests.setUp(self))
+		return d
+
+	def tearDown(self):
+		#d = threads.deferToThread(self.server.delete_db, 'pubsub_test')
+		#return d
+		pass
+
+
+	def init(self):
+		from idavoll.couchdb_storage import CouchStorage
+
+		# nodes
+		node = CouchStorage.Node(node='pre-existing', node_type='leaf', persist_items=True)
+		node.save()
+		node = CouchStorage.Node(node='to-be-deleted')
+		node.save()
+		node = CouchStorage.Node(node='to-be-reconfigured')
+		node.save()
+		node = CouchStorage.Node(node='to-be-purged')
+		node.save()
+
+		# entities
+		entity = CouchStorage.Entity(jid=OWNER.userhost())
+		entity['_id'] = 'entity:' + OWNER.userhost()
+		entity.save()
+		entity = CouchStorage.Entity(jid=SUBSCRIBER.userhost())
+		entity['_id'] = 'entity:' + SUBSCRIBER.userhost()
+		entity.save()
+		entity = CouchStorage.Entity(jid=SUBSCRIBER_TO_BE_DELETED.userhost())
+		entity['_id'] = 'entity:' + SUBSCRIBER_TO_BE_DELETED.userhost()
+		entity.save()
+		entity = CouchStorage.Entity(jid=SUBSCRIBER_PENDING.userhost())
+		entity['_id'] = 'entity:' + SUBSCRIBER_PENDING.userhost()
+		entity.save()
+		entity = CouchStorage.Entity(jid=PUBLISHER.userhost())
+		entity['_id'] = 'entity:' + PUBLISHER.userhost()
+		entity.save()
+
+		# affiliations
+		aff = CouchStorage.Affiliation(node='pre-existing', entity=OWNER.userhost(), affiliation='owner')
+		aff.save()
+
+		# subscriptions
+		subs = CouchStorage.Subscription(
+			node='pre-existing',
+			entity=SUBSCRIBER.userhost(),
+			resource=SUBSCRIBER.resource,
+			state='subscribed',
+			)
+		subs.save()
+
+		subs = CouchStorage.Subscription(
+			node='pre-existing',
+			entity=SUBSCRIBER_TO_BE_DELETED.userhost(),
+			resource=SUBSCRIBER_TO_BE_DELETED.resource,
+			state='subscribed',
+			)
+		subs.save()
+
+		subs = CouchStorage.Subscription(
+			node='pre-existing',
+			entity=SUBSCRIBER_PENDING.userhost(),
+			resource=SUBSCRIBER_PENDING.resource,
+			state='pending',
+			)
+		subs.save()
+
+		#items
+
+		# pre-existing:to-be-deleted & pre-existing:to-be-deleted2
+		item = CouchStorage.Item(
+			node='pre-existing',
+			publisher=PUBLISHER.userhost(),
+			item_id='to-be-deleted',
+			data=ITEM_TO_BE_DELETED.toXml(),
+			)
+		item.save()
+		item = CouchStorage.Item(
+			node='pre-existing',
+			publisher=PUBLISHER.userhost(),
+			item_id='to-be-deleted2',
+			data=ITEM_TO_BE_DELETED.toXml(),
+			)
+		item.save()
+
+		item = CouchStorage.Item(
+			node='to-be-purged',
+			publisher=PUBLISHER.userhost(),
+			item_id='to-be-deleted',
+			data=ITEM_TO_BE_DELETED.toXml(),
+			)
+		item.save()
+
+		item = CouchStorage.Item(
+			node='pre-existing',
+			publisher=PUBLISHER.userhost(),
+			item_id='current',
+			data=ITEM.toXml(),
+			)
+		item.save()
+
 
 try:
 	import psycopg2

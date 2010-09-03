@@ -12,6 +12,7 @@ import restkit, logging
 from couchdbkit import *
 
 from twisted.words.protocols.jabber import jid
+from twisted.internet import threads
 
 from wokkel.generic import parseXml, stripNamespace
 from wokkel.pubsub import Subscription
@@ -54,7 +55,7 @@ class CouchStorage:
 	class Entity(Document):
 		doc_type = 'entity'
 		jid = StringProperty()
-		nodes = ListProperty() # node affiliation list [{node, affiliation}]
+		#nodes = ListProperty() # node affiliation list [{node, affiliation}]
 
 		def save(self):
 			self['_id'] = self.key(jid=self.jid)
@@ -74,14 +75,15 @@ class CouchStorage:
 		affiliation = StringProperty()
 		
 		def save(self):
-			self['_id'] = 'affiliation' + KEY_SEPARATOR + self.entity + KEY_SEPARATOR + self.node + KEY_SEPARATOR + self.affiliation
+			self['_id'] = self.key(entity=self.entity, node=self.node, affiliation=self.affiliation)
 			Document.save(self)
 		
 		def key(self):
-			return self.key(node=self.node, entity=self.entity, affiliation=self.affiliation)
+			return self.key(entity=self.entity, node=self.node, affiliation=self.affiliation)
 
 		@staticmethod
 		def key(entity='', node='', affiliation=''):
+			#print type(entity)
 			return 'affiliation' + KEY_SEPARATOR + entity + KEY_SEPARATOR + node + KEY_SEPARATOR + affiliation
 	
 	class Subscription(Document):
@@ -161,8 +163,9 @@ class Storage:
 		CouchStorage.Item.set_db(self.dbpool)
 
 
-	def getNode(self, nodeIdentifier):
-		return self._getNode(nodeIdentifier)
+	def getNode(self, nodeIdentifier, callback=None):
+		d = threads.deferToThread(self._getNode, nodeIdentifier)
+		return d
 
 	
 	def _getNode(self, nodeIdentifier):
@@ -191,15 +194,20 @@ class Storage:
 
 
 	def getNodeIds(self):
+		d = threads.deferToThread(self._getNodeIds)
+		return d
+		
+	
+	def _getNodeIds(self):
 		nodes = CouchStorage.Node.view('pubsub/nodes_by_node')
 		result = []
 		for node in nodes.iterator(): # fixme
 			result.append(node.node)
 		return result
 
-
 	def createNode(self, nodeIdentifier, owner, config):
-		return self._createNode(nodeIdentifier, owner, config)
+		d = threads.deferToThread(self._createNode, nodeIdentifier, owner, config)
+		return d
 
 	def _createNode(self, nodeIdentifier, owner, config):
 		if config['pubsub#node_type'] != 'leaf':
@@ -225,7 +233,7 @@ class Storage:
 
 		# save entity
 		try:
-			owner_entity = CouchStorage.Entity.get('entity' + KEY_SEPARATOR + owner)
+			entity = CouchStorage.Entity.get('entity' + KEY_SEPARATOR + owner)
 		except:
 			entity = CouchStorage.Entity(jid=owner)
 			entity.save()			
@@ -239,11 +247,12 @@ class Storage:
 			affiliation='owner',
 		)
 		# 'affiliation' : entity : node : affiliation
-		affiliation['_id'] = 'affiliation:' + owner + ':' + nodeIdentifier + ':owner'
+		#affiliation['_id'] = 'affiliation:' + owner + ':' + nodeIdentifier + ':owner'
+		print affiliation['_id']
 		affiliation.save()
 
 	def deleteNode(self, nodeIdentifier):
-		return self._deleteNode(nodeIdentifier)
+		return threads.deferToThread(self._deleteNode, nodeIdentifier)
 
 
 	def _deleteNode(self, nodeIdentifier):
@@ -252,19 +261,22 @@ class Storage:
 			node.delete()
 		except:
 			raise error.NodeNotFound()
-			
-
 
 	def getAffiliations(self, entity):
+		return threads.deferToThread(self._getAffiliations, entity)
+	
+	def _getAffiliations(self, entity):
 		affiliations = CouchStorage.Affiliation.view(
 			'pubsub/affiliations_by_entity',
 			key=entity.userhost(),
 			)
-
 		return [ tuple(a['value']) for a in affiliations]
 
 
 	def getSubscriptions(self, entity):
+		return threads.deferToThread(self._getSubscriptions, entity)
+		
+	def _getSubscriptions(self, entity):
 		def toSubscriptions(db_subscriptions):
 			subscriptions = []
 			for db_subscription in db_subscriptions:
@@ -281,6 +293,7 @@ class Storage:
 			)
 		#print subscriptions.all()
 		return toSubscriptions(subscriptions.all())
+	
 
 
 	def getDefaultConfiguration(self, nodeType):
@@ -319,8 +332,9 @@ class Node:
 			if option in config:
 				config[option] = options[option]
 
-		self._setConfiguration(config)
-		self._setCachedConfiguration(config)
+		d = threads.deferToThread(self._setConfiguration, config)
+		d.addCallback(self._setCachedConfiguration, config)
+		return d
 
 	def _setConfiguration(self, config):
 		self._checkNodeExists()
@@ -334,7 +348,7 @@ class Node:
 		except Exception as e:
 			raise error.NodeNotFound()
 
-	def _setCachedConfiguration(self, config):
+	def _setCachedConfiguration(self, void, config):
 		self._config = config
 
 
@@ -345,8 +359,7 @@ class Node:
 
 
 	def getAffiliation(self, entity):
-		#return self.dbpool.runInteraction(self._getAffiliation, entity)
-		return self._getAffiliation(entity)
+		return threads.deferToThread(self._getAffiliation, entity)
 
 
 	def _getAffiliation(self, entity):
@@ -365,8 +378,7 @@ class Node:
 			return affiliation
 
 	def getSubscription(self, subscriber):
-		#return self.dbpool.runInteraction(self._getSubscription, subscriber)
-		return self._getSubscription(subscriber)
+		return threads.deferToThread(self._getSubscription, subscriber)
 
 
 	def _getSubscription(self, subscriber):
@@ -388,8 +400,7 @@ class Node:
 
 
 	def getSubscriptions(self, state=None):
-		#return self.dbpool.runInteraction(self._getSubscriptions, state)
-		return self._getSubscriptions(state)
+		return threads.deferToThread(self._getSubscriptions, state)
 
 
 	def _getSubscriptions(self, state):
@@ -424,7 +435,7 @@ class Node:
 
 
 	def addSubscription(self, subscriber, state, config):
-		return self._addSubscription(subscriber, state, config)
+		return threads.deferToThread(self._addSubscription, subscriber, state, config)
 
 
 	def _addSubscription(self, subscriber, state, config):
@@ -460,7 +471,7 @@ class Node:
 
 
 	def removeSubscription(self, subscriber):
-		return self._removeSubscription(subscriber)
+		return threads.deferToThread(self._removeSubscription, subscriber)
 
 	def _removeSubscription(self, subscriber):
 		self._checkNodeExists()
@@ -479,8 +490,7 @@ class Node:
 
 
 	def isSubscribed(self, entity):
-		#return self.dbpool.runInteraction(self._isSubscribed, entity)
-		return self._isSubscribed(entity)
+		return threads.deferToThread(self._isSubscribed, entity)
 
 
 	def _isSubscribed(self, entity):
@@ -491,8 +501,10 @@ class Node:
 			'pubsub/subscriptions_by_entity',
 			startkey=[entity.userhost(), self.nodeIdentifier, 'subscribed'],
 			endkey=[entity.userhost(), self.nodeIdentifier, 'subscribed', {}],
+			#limit=0, # dont emit documents, emit only number of documents
 			)
 		
+		print subscriptions.count()
 		if subscriptions.count() > 0:
 			return True
 		else:
@@ -500,8 +512,7 @@ class Node:
 
 
 	def getAffiliations(self):
-		#return self.dbpool.runInteraction(self._getAffiliations)
-		return self._getAffiliations()
+		return threads.deferToThread(self._getAffiliations)
 
 
 	def _getAffiliations(self):
@@ -523,8 +534,7 @@ class LeafNode(Node):
 	nodeType = 'leaf'
 
 	def storeItems(self, items, publisher):
-		#return self.dbpool.runInteraction(self._storeItems, items, publisher)
-		return self._storeItems(items, publisher)
+		return threads.deferToThread(self._storeItems, items, publisher)
 
 
 	def _storeItems(self, items, publisher):
@@ -558,8 +568,7 @@ class LeafNode(Node):
 		
 
 	def removeItems(self, itemIdentifiers):
-		#return self.dbpool.runInteraction(self._removeItems, itemIdentifiers)
-		return self._removeItems(itemIdentifiers)
+		return threads.deferToThread(self._removeItems, itemIdentifiers)
 
 
 	# FIXME: bulk_delete returns None
@@ -593,8 +602,7 @@ class LeafNode(Node):
 
 
 	def getItems(self, maxItems=None):
-		#return self.dbpool.runInteraction(self._getItems, maxItems)
-		return self._getItems(maxItems)
+		return threads.deferToThread(self._getItems, maxItems)
 
 
 	def _getItems(self, maxItems):
@@ -619,8 +627,7 @@ class LeafNode(Node):
 
 
 	def getItemsById(self, itemIdentifiers):
-		#return self.dbpool.runInteraction(self._getItemsById, itemIdentifiers)
-		return self._getItemsById(itemIdentifiers)
+		return threads.deferToThread(self._getItemsById, itemIdentifiers)
 
 
 	def _getItemsById(self, itemIdentifiers):
@@ -638,8 +645,7 @@ class LeafNode(Node):
 
 
 	def purge(self):
-		#return self.dbpool.runInteraction(self._purge)
-		self._purge()
+		return threads.deferToThread(self._purge)
 
 
 	def _purge(self):

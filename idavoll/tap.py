@@ -60,6 +60,15 @@ def makeService(config):
         from idavoll.memory_storage import Storage
         st = Storage()
 
+    elif config['backend'] == 'couchdb':
+        from idavoll.couchdb_storage import Storage
+		pool = SimplePool(keepalive=5) # pool of 5 connections to couchdb
+		server = Server(
+			'http://%s:%s/' % (config['dbhost'], config['dbport'])
+			pool_instance=pool)
+		db = server.get_or_create_db('pubsub')
+		st = Storage(self.db)
+
     bs = BackendService(st)
     bs.setName('backend')
     bs.setServiceParent(s)
