@@ -14,6 +14,21 @@ from twisted.words.xish import domish
 from wokkel import pubsub
 
 from idavoll import error, iidavoll
+from idavoll.twisted_utils import *
+
+
+DBG_XML = """
+	<profile xmlns='testns'>
+		<firstname>Rikini</firstname>
+	    <lastname>Santini</lastname>
+	    <gender>M</gender>
+	    <birthcountry>Portugal</birthcountry>
+	    <birthcity>Coimbra</birthcity>
+	    <birthdate>1980-01-01</birthdate>
+	    <civilstatus>Single</civilstatus>
+	    <nationality>PT</nationality>
+	</profile>
+"""
 
 OWNER = jid.JID('owner@example.com')
 SUBSCRIBER = jid.JID('subscriber@example.com/Home')
@@ -27,6 +42,14 @@ ITEM.addElement(('testns', 'test'), content=u'Test \u2083 item')
 ITEM_NEW = domish.Element((None, 'item'))
 ITEM_NEW['id'] = 'new'
 ITEM_NEW.addElement(('testns', 'test'), content=u'Test \u2083 item')
+
+# NFVS
+# ITEM_NEW.addElement(('testns', 'test'), content=u'second test item')
+# inner = domish.Element((None, 'profile'))
+# inner.addElement('inner', content='innercontent')
+# #inner.addElement('inner2', content='inner2')
+# ITEM_NEW.addChild(inner)
+
 ITEM_UPDATED = domish.Element((None, 'item'))
 ITEM_UPDATED['id'] = 'current'
 ITEM_UPDATED.addElement(('testns', 'test'), content=u'Test \u2084 item')
@@ -652,18 +675,21 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 		#items
 
 		# pre-existing:to-be-deleted & pre-existing:to-be-deleted2
+		s = DictSerializer()
 		item = CouchStorage.Item(
 			node='pre-existing',
 			publisher=PUBLISHER.userhost(),
 			item_id='to-be-deleted',
-			data=ITEM_TO_BE_DELETED.toXml(),
+			#data=ITEM_TO_BE_DELETED.toXml(),
+			data=s.dict_from_elem(ITEM_TO_BE_DELETED)
 			)
 		item.save()
 		item = CouchStorage.Item(
 			node='pre-existing',
 			publisher=PUBLISHER.userhost(),
 			item_id='to-be-deleted2',
-			data=ITEM_TO_BE_DELETED.toXml(),
+			#data=ITEM_TO_BE_DELETED.toXml(),
+			data=s.dict_from_elem(ITEM_TO_BE_DELETED)
 			)
 		item.save()
 
@@ -671,7 +697,8 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 			node='to-be-purged',
 			publisher=PUBLISHER.userhost(),
 			item_id='to-be-deleted',
-			data=ITEM_TO_BE_DELETED.toXml(),
+			#data=ITEM_TO_BE_DELETED.toXml(),
+			data=s.dict_from_elem(ITEM_TO_BE_DELETED)
 			)
 		item.save()
 
@@ -679,7 +706,8 @@ class CouchdbStorageStorageTestCase(unittest.TestCase, StorageTests):
 			node='pre-existing',
 			publisher=PUBLISHER.userhost(),
 			item_id='current',
-			data=ITEM.toXml(),
+			#data=ITEM.toXml(),
+			data=s.dict_from_elem(ITEM)
 			)
 		item.save()
 

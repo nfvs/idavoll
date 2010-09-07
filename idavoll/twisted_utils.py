@@ -1,4 +1,5 @@
 import types
+from twisted.words.xish import domish
 
 def _splitPrefix(name):
 	""" Internal method for splitting a prefixed Element name into its
@@ -40,12 +41,12 @@ class DictSerializer:
 		return False
 	
 	def dict_from_elem(self, elem):
-		res = {}
-		res = self._serialize_to_dict(elem)
-		print res
+		res = dict(self._serialize_to_dict(elem))
 		return res
 
-
+	"""
+	Serialize twisted domish.Element to python dict
+	"""
 	def _serialize_to_dict(self, elem, closeElement=1, defaultUri=''):
 		ret = {}
 	
@@ -138,3 +139,50 @@ class DictSerializer:
 		if not ret[name]['attribs']:
 			del ret[name]['attribs']
 		return ret
+	
+	"""
+	Serialize couchdbkit LazyList to twisted domish.Elements (xml)
+	Note: must have a single root element
+	"""
+	def serialize_to_xml(self, itemlist):
+
+		# root element
+		root_elem = itemlist.keys()[0]
+		root = domish.Element((None, root_elem))
+
+		# root attributes
+		if 'attribs' in itemlist[root_elem]:
+			self._add_xml_attributes(root, itemlist[root_elem]['attribs'])
+		
+		# child elements
+		self._serialize_to_xml(root, itemlist[root_elem]['value'])
+	
+		#return root.toXml()
+		return root
+		
+	def _serialize_to_xml(self, root, itemlist):
+		
+		# if value is a string, add content
+		if isinstance(itemlist, types.StringTypes):
+			root.addContent(itemlist)
+			return
+		
+		# iterate child elements
+		for item in itemlist:
+			root_elem = item.keys()[0]
+				
+			child_elem = root.addElement(root_elem)
+			
+			# add attributes
+			if 'attribs' in item[root_elem]:
+				self._add_xml_attributes(child_elem, item[root_elem]['attribs'])\
+			
+			# add child nodes
+			self._serialize_to_xml(child_elem, item[root_elem]['value'])
+			
+	
+	def _add_xml_attributes(self, element, attr_list):
+		attr_list = dict(attr_list)
+		for k,v in attr_list.iteritems():
+			element[k] = v
+		

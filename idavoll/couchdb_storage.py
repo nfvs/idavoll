@@ -19,6 +19,9 @@ from wokkel.pubsub import Subscription
 
 from idavoll import error, iidavoll
 
+from twisted_utils import *
+#from xml_utils import *
+
 KEY_SEPARATOR = ':'
 
 # Data structures
@@ -113,7 +116,8 @@ class CouchStorage:
 		item_id = StringProperty()
 		node = StringProperty()
 		publisher = StringProperty()
-		data = StringProperty()
+		#data = StringProperty()
+		data = DictProperty()
 		date = DateTimeProperty()
 		
 		def save(self):
@@ -248,7 +252,7 @@ class Storage:
 		)
 		# 'affiliation' : entity : node : affiliation
 		#affiliation['_id'] = 'affiliation:' + owner + ':' + nodeIdentifier + ':owner'
-		print affiliation['_id']
+		#print affiliation['_id']
 		affiliation.save()
 
 	def deleteNode(self, nodeIdentifier):
@@ -504,7 +508,7 @@ class Node:
 			#limit=0, # dont emit documents, emit only number of documents
 			)
 		
-		print subscriptions.count()
+		#print subscriptions.count()
 		if subscriptions.count() > 0:
 			return True
 		else:
@@ -545,7 +549,11 @@ class LeafNode(Node):
 
 
 	def _storeItem(self, item, publisher):
-		data = item.toXml()
+		#xml = item.toXml()
+		print 'ORIG: ' + str(item.toXml().encode('utf-8'))
+		s = DictSerializer()
+		data = s.dict_from_elem(item)
+		print type(data)
 		
 		# try updating existing item;
 		# if it doesnt exist, create a new one
@@ -621,8 +629,10 @@ class LeafNode(Node):
 				startkey=[self.nodeIdentifier],
 				endkey=[self.nodeIdentifier, {}, {}],
 				)
-				
-		elements = [parseXml(i.data.encode('utf-8')) for i in items]
+		
+		#elements = [parseXml(i.data.encode('utf-8')) for i in items]
+		s = DictSerializer()
+		elements = [s.serialize_to_xml(i.data) for i in items]
 		return elements
 
 
@@ -639,8 +649,10 @@ class LeafNode(Node):
 			'pubsub/items_by_node',
 			keys=keys
 		)
-		#print items.all()
-		values = [parseXml(i.data.encode('utf-8')) for i in items.all()]
+		
+		#values = [parseXml(i.data.encode('utf-8')) for i in items.all()]
+		s = DictSerializer()
+		values = [s.serialize_to_xml(i.data) for i in items.all()]
 		return values
 
 
