@@ -17,6 +17,10 @@ G_PREFIXES = { "http://www.w3.org/XML/1998/namespace":"xml" }
 
 class DictSerializer:
 	
+	@staticmethod
+	def sanitize(string):
+		return ' '.join(string.split())
+	
 	""" Internal class which serializes an Element tree into a buffer """
 	def __init__(self, prefixes=None, prefixesInScope=None):
 		self.writelist = []
@@ -54,7 +58,7 @@ class DictSerializer:
 		if isinstance(elem, types.StringTypes):
 			#ret[key] = elem
 			#return
-			return elem
+			return self.sanitize(elem)
 	
 		# Further optimizations
 		parent = elem.parent
@@ -129,12 +133,15 @@ class DictSerializer:
 	
 		# save a single element as a key:value, and multiple as [key:value]
 		# leaf xml node (single element)
-		if len(elem.children) == 1 and isinstance(elem.children[0], types.StringTypes):
+		if len(elem.children) == 1 and isinstance(elem.children[0], types.StringTypes) and self.sanitize(elem.children[0]):
 			ret[name]['value'] = elem.children[0]
 		# tree xml node (element list)
 		elif len(elem.children) > 0:
 			for c in elem.children:
-				ret[name]['value'].append(self._serialize_to_dict(c, defaultUri=defaultUri))
+				# check if the returned element is an empty string, skip if it is
+				ret_child = self._serialize_to_dict(c, defaultUri=defaultUri)
+				if ret_child:
+					ret[name]['value'].append(ret_child)
 
 		if not ret[name]['attribs']:
 			del ret[name]['attribs']
@@ -161,6 +168,8 @@ class DictSerializer:
 		return root
 		
 	def _serialize_to_xml(self, root, itemlist):
+		
+		#print 'ORIG: ' + str(itemlist)
 		
 		# if value is a string, add content
 		if isinstance(itemlist, types.StringTypes):

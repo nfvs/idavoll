@@ -86,7 +86,6 @@ class CouchStorage:
 
 		@staticmethod
 		def key(entity='', node='', affiliation=''):
-			#print type(entity)
 			return 'affiliation' + KEY_SEPARATOR + entity + KEY_SEPARATOR + node + KEY_SEPARATOR + affiliation
 	
 	class Subscription(Document):
@@ -116,7 +115,6 @@ class CouchStorage:
 		item_id = StringProperty()
 		node = StringProperty()
 		publisher = StringProperty()
-		#data = StringProperty()
 		data = DictProperty()
 		date = DateTimeProperty()
 		
@@ -137,9 +135,6 @@ class CouchStorage:
 
 # Main CouchDB Storage class
 class Storage:
-	
-
-	
 	
 	implements(iidavoll.IStorage)
 
@@ -214,6 +209,7 @@ class Storage:
 		return d
 
 	def _createNode(self, nodeIdentifier, owner, config):
+		print config
 		if config['pubsub#node_type'] != 'leaf':
 			raise error.NoCollections()
 
@@ -245,26 +241,82 @@ class Storage:
 			
 
 		# save affiliation
-		affiliation = CouchStorage.Affiliation(
-			node=nodeIdentifier,
-			entity=owner,
-			affiliation='owner',
-		)
-		# 'affiliation' : entity : node : affiliation
-		#affiliation['_id'] = 'affiliation:' + owner + ':' + nodeIdentifier + ':owner'
-		#print affiliation['_id']
-		affiliation.save()
+		try:
+			affiliation = CouchStorage.Affiliation(
+				node=nodeIdentifier,
+				entity=owner,
+				affiliation='owner',
+			)
+			# 'affiliation' : entity : node : affiliation
+			#affiliation['_id'] = 'affiliation:' + owner + ':' + nodeIdentifier + ':owner'
+			#print affiliation['_id']
+			affiliation.save()
+		except ResourceConflict:
+			pass
 
 	def deleteNode(self, nodeIdentifier):
 		return threads.deferToThread(self._deleteNode, nodeIdentifier)
 
 
+	# TODO: test
+	# because the lack of CASCADE DELETE as used in SQL storage, delete:
+	# 1. node
+	# 2. affiliations of this node
+	# 3. subscriptions of this node
+	# 4. items of this node
 	def _deleteNode(self, nodeIdentifier):
+		
+		# 1. delete node
 		try:
 			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + nodeIdentifier)
 			node.delete()
 		except:
 			raise error.NodeNotFound()
+		
+		# 2. delete affiliations
+		try:
+			# delete affiliations
+			affiliations = CouchStorage.Affiliation.view(
+				'pubsub/affiliations_by_node',
+				key=nodeIdentifier,
+				)
+			
+			affiliations = [a.to_json() for a in affiliations]
+			 
+			self.dbpool.bulk_delete(affiliations)
+		except Exception as e:
+			print e
+			pass
+
+		# 3. delete subscriptions
+		try:
+			subscriptions = CouchStorage.Subscription.view(
+				'pubsub/subscriptions_by_node_state',
+				startkey=[nodeIdentifier],
+				endkey=[nodeIdentifier, {}],
+				)
+			
+			subscriptions = [s.to_json() for s in subscriptions]
+			 
+			self.dbpool.bulk_delete(subscriptions)
+		except Exception as e:
+			print e
+			pass
+			
+		# 4. delete items
+		try:
+			items = CouchStorage.Item.view(
+				'pubsub/items_by_node',
+				startkey=[nodeIdentifier],
+				endkey=[nodeIdentifier, {}],
+				)
+			
+			items = [i.to_json() for i in items]
+
+			self.dbpool.bulk_delete(items)
+		except Exception as e:
+			print e
+			pass
 
 	def getAffiliations(self, entity):
 		return threads.deferToThread(self._getAffiliations, entity)
@@ -490,6 +542,9 @@ class Node:
 		except:
 			raise error.NotSubscribed()
 		
+		# delete subscription
+		subscription.delete()
+		
 		return None
 
 
@@ -550,7 +605,7 @@ class LeafNode(Node):
 
 	def _storeItem(self, item, publisher):
 		#xml = item.toXml()
-		print 'ORIG: ' + str(item.toXml().encode('utf-8'))
+		#print 'ORIG: ' + str(item.toXml().encode('utf-8'))
 		s = DictSerializer()
 		data = s.dict_from_elem(item)
 		print type(data)
