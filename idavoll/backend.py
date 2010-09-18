@@ -305,13 +305,17 @@ class BackendService(service.Service, utility.EventDispatcher):
 	def createNode(self, nodeIdentifier, requestor, options=None):
 		if not nodeIdentifier:
 			nodeIdentifier = 'generic/%s' % uuid.uuid4()
-			
+
 		# accept only allowed node configuration options (self.nodeOptions)
-		config = {}
 		if options:
+			# get node type from options, or use default
+			nodeType = options['pubsub#node_type'] or 'leaf'
+			
+			config = self.storage.getDefaultConfiguration(nodeType)
 			for optionName, optionValue in options.iteritems():
 				if optionName in self.nodeOptions:
 					config[optionName] = optionValue
+					
 		# default node configuration
 		else:
 			nodeType = 'leaf'

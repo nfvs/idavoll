@@ -30,19 +30,21 @@ class CouchStorage:
 		doc_type = 'node'
 		node = StringProperty()
 		node_type = StringProperty()
-		persist_items = BooleanProperty()
+#		persist_items = DynamicProperty()
 		deliver_payloads = BooleanProperty()
 		send_last_published_item = StringProperty()
-		#entities = ListProperty()
 		date = DateTimeProperty()
 		
 		def save(self):
+			# set defaults
 			if self.node_type is None:
 				self.node_type = 'leaf'
 			if self.deliver_payloads is None:
 				self.deliver_payloads = True
 			if self.send_last_published_item is None:
-				self.send_last_published_item = 'on_sub'	
+				self.send_last_published_item = 'on_sub'
+			if self.node_type == 'leaf' and not hasattr(self, 'persist_items'):
+				self.persist_items = True
 			if self['_id'] is None:
 				self['_id'] = self.key(node=self.node)
 				
@@ -54,6 +56,12 @@ class CouchStorage:
 		@staticmethod
 		def key(node=''):
 			return 'node' + KEY_SEPARATOR + node
+	
+	#class LeafNode(Node):
+		#persist_items = BooleanProperty() # dynamic property
+		
+	#class CollectionNode(Node):
+	#	pass
 
 	class Entity(Document):
 		doc_type = 'entity'
@@ -156,6 +164,8 @@ class Storage:
 		
 		# associate datastructures to the db
 		CouchStorage.Node.set_db(self.dbpool)
+		#CouchStorage.LeafNode.set_db(self.dbpool)
+		#CouchStorage.CollectionNode.set_db(self.dbpool)
 		CouchStorage.Entity.set_db(self.dbpool)
 		CouchStorage.Affiliation.set_db(self.dbpool)
 		CouchStorage.Subscription.set_db(self.dbpool)
@@ -209,26 +219,39 @@ class Storage:
 		return d
 
 	def _createNode(self, nodeIdentifier, owner, config):
-		if config['pubsub#node_type'] != 'leaf':
-			raise error.NoCollections()
+		#if config['pubsub#node_type'] != 'leaf':
+		#	raise error.NoCollections()
 
 		owner = owner.userhost()
-		
 		try:
-			node = CouchStorage.Node(
-				node = nodeIdentifier,
-				node_type = 'leaf',
-				persist_items = config['pubsub#persist_items'],
-				deliver_payloads = config['pubsub#deliver_payloads'],
-				send_last_published_item = config['pubsub#send_last_published_item'],
-				#entities = [{'jid': owner, 'affiliation': 'owner'}],
-				date = datetime.datetime.utcnow()
-				)
+			# leaf node
+			if config['pubsub#node_type'] == 'leaf':
+				node = CouchStorage.Node(
+					node = nodeIdentifier,
+					node_type = 'leaf',
+					persist_items = config['pubsub#persist_items'],
+					deliver_payloads = config['pubsub#deliver_payloads'],
+					send_last_published_item = config['pubsub#send_last_published_item'],
+					date = datetime.datetime.utcnow()
+					)
+					
+			# collection node
+			elif config['pubsub#node_type'] == 'collection':
+				node = CouchStorage.Node(
+					node = nodeIdentifier,
+					node_type = 'collection',
+					deliver_payloads = config['pubsub#deliver_payloads'],
+					send_last_published_item = config['pubsub#send_last_published_item'],
+					date = datetime.datetime.utcnow()
+					)
+			else:
+				pass
+				
 			node.save()
 		except ResourceConflict:
 			raise error.NodeExists
 		except Exception as e:
-			print e
+			print 'Error: ' + str(e)
 			raise error.Error()
 
 		# save entity
@@ -582,7 +605,8 @@ class Node:
 			)
 			
 		affiliations = affiliations.all()
-		return [(jid.internJID(r['value'][0]), r['value'][1]) for r in affiliations]
+		#return [(jid.internJID(r['value'][0]), r['value'][1]) for r in affiliations]
+		return [(jid.internJID(r.entity), r.affiliation) for r in affiliations]
 
 
 class LeafNode(Node):
