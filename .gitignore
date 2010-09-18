@@ -1,3 +1,6 @@
 build/
+dist/
+idavoll.egg-info/
 *.pyc
 *.tmproj
+

@@ -200,7 +200,7 @@ class Storage:
 	def _getNodeIds(self):
 		nodes = CouchStorage.Node.view('pubsub/nodes_by_node')
 		result = []
-		for node in nodes.iterator(): # fixme
+		for node in nodes.iterator():
 			result.append(node.node)
 		return result
 
@@ -209,7 +209,6 @@ class Storage:
 		return d
 
 	def _createNode(self, nodeIdentifier, owner, config):
-		print config
 		if config['pubsub#node_type'] != 'leaf':
 			raise error.NoCollections()
 
@@ -229,6 +228,7 @@ class Storage:
 		except ResourceConflict:
 			raise error.NodeExists
 		except Exception as e:
+			print e
 			raise error.Error()
 
 		# save entity
@@ -258,7 +258,6 @@ class Storage:
 		return threads.deferToThread(self._deleteNode, nodeIdentifier)
 
 
-	# TODO: test
 	# because the lack of CASCADE DELETE as used in SQL storage, delete:
 	# 1. node
 	# 2. affiliations of this node
@@ -608,7 +607,6 @@ class LeafNode(Node):
 		#print 'ORIG: ' + str(item.toXml().encode('utf-8'))
 		s = DictSerializer()
 		data = s.dict_from_elem(item)
-		print type(data)
 		
 		# try updating existing item;
 		# if it doesnt exist, create a new one
@@ -709,7 +707,7 @@ class LeafNode(Node):
 		s = DictSerializer()
 		values = [s.serialize_to_xml(i.data) for i in items.all()]
 		return values
-
+	
 
 	def purge(self):
 		return threads.deferToThread(self._purge)

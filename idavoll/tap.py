@@ -39,6 +39,12 @@ class Options(usage.Options):
 		self['jid'] = JID(self['jid'])
 
 def makeService(config):
+	
+	# http://bugs.python.org/issue7980 workaround:
+	# call strptime before creating threads
+	import datetime
+	datetime.datetime.strptime('10:00', '%H:%M')
+	
 	s = service.MultiService()
 
 	# Create backend service with storage
