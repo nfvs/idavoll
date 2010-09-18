@@ -73,6 +73,9 @@ class BackendService(service.Service, utility.EventDispatcher):
 					 "leaf": "Leaf Node",
 					 "collection": "Collection node"}
 				},
+			"pubsub#collection":
+                {"type": "text-single",
+                 "label": "Collection which the node belongs to"},
 			}
 
 	subscriptionOptions = {
@@ -309,7 +312,10 @@ class BackendService(service.Service, utility.EventDispatcher):
 		# accept only allowed node configuration options (self.nodeOptions)
 		if options:
 			# get node type from options, or use default
-			nodeType = options['pubsub#node_type'] or 'leaf'
+			if 'pubsub#node_type' in options:
+				nodeType = options['pubsub#node_type']
+			else:
+				nodeType = 'leaf'
 			
 			config = self.storage.getDefaultConfiguration(nodeType)
 			for optionName, optionValue in options.iteritems():

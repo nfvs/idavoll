@@ -224,8 +224,13 @@ class Storage:
 
 		owner = owner.userhost()
 		try:
+			if 'pubsub#node_type' in config:
+				nodeType = config['pubsub#node_type']
+			else:
+				nodeType = 'leaf'
+				
 			# leaf node
-			if config['pubsub#node_type'] == 'leaf':
+			if nodeType == 'leaf':
 				node = CouchStorage.Node(
 					node = nodeIdentifier,
 					node_type = 'leaf',
@@ -234,9 +239,11 @@ class Storage:
 					send_last_published_item = config['pubsub#send_last_published_item'],
 					date = datetime.datetime.utcnow()
 					)
+				if 'pubsub#collection' in config:
+					node.collection = config['pubsub#collection']
 					
 			# collection node
-			elif config['pubsub#node_type'] == 'collection':
+			elif nodeType == 'collection':
 				node = CouchStorage.Node(
 					node = nodeIdentifier,
 					node_type = 'collection',
@@ -244,6 +251,10 @@ class Storage:
 					send_last_published_item = config['pubsub#send_last_published_item'],
 					date = datetime.datetime.utcnow()
 					)
+				if 'pubsub#collection' in config:
+					node.collection = config['pubsub#collection']
+				else:
+					node.collection = ''
 			else:
 				pass
 				
