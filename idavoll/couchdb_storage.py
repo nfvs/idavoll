@@ -23,9 +23,49 @@ from twisted_utils import *
 #from xml_utils import *
 
 KEY_SEPARATOR = ':'
+COLLECTION_NODE_DOCID = 'nodecollection'
 
 # Data structures
 class CouchStorage:
+	class CollectionNode(Document):
+		doc_type = 'collection_node'
+		node_type = 'collection'
+		collection = DictProperty()
+		
+		def save(self):
+			if not self['_id']:
+				self['_id'] = COLLECTION_NODE_DOCID
+			return Document.save(self)
+		
+		def addCollectionNode(self, parent, node):
+			path = []
+			found = self.findTreePath(self.collection, parent, node, path)
+			path.reverse()
+			print 'path: %s' % path
+			collection = self.collection
+			for p in path:
+				collection = collection[p]
+			collection[node] = {}
+			print 'collection: %s' % self.collection
+
+		# returns the tree path to the node
+		def findTreePath(self, root, parent, node, result):
+			# root node
+			if not parent or parent is '':
+				return True
+		
+			# node in this level
+			if parent in root:
+				result.append(parent)
+				return True
+			else:
+				for k in root.iterkeys():
+					if self.findTreePath(root[k], parent, node, result):
+						result.append(k)
+						return True
+				return False
+				
+			
 	class Node(Document):
 		doc_type = 'node'
 		node = StringProperty()
@@ -164,8 +204,7 @@ class Storage:
 		
 		# associate datastructures to the db
 		CouchStorage.Node.set_db(self.dbpool)
-		#CouchStorage.LeafNode.set_db(self.dbpool)
-		#CouchStorage.CollectionNode.set_db(self.dbpool)
+		CouchStorage.CollectionNode.set_db(self.dbpool)
 		CouchStorage.Entity.set_db(self.dbpool)
 		CouchStorage.Affiliation.set_db(self.dbpool)
 		CouchStorage.Subscription.set_db(self.dbpool)
@@ -241,24 +280,26 @@ class Storage:
 					)
 				if 'pubsub#collection' in config:
 					node.collection = config['pubsub#collection']
+				node.save()
 					
 			# collection node
 			elif nodeType == 'collection':
-				node = CouchStorage.Node(
-					node = nodeIdentifier,
-					node_type = 'collection',
-					deliver_payloads = config['pubsub#deliver_payloads'],
-					send_last_published_item = config['pubsub#send_last_published_item'],
-					date = datetime.datetime.utcnow()
-					)
+				try:
+					collectionNode = CouchStorage.CollectionNode.get(COLLECTION_NODE_DOCID)
+				except:
+					collectionNode = CouchStorage.CollectionNode()
+				
+				# find the collection node in the tree, append the current collection node
 				if 'pubsub#collection' in config:
-					node.collection = config['pubsub#collection']
+					added = collectionNode.addCollectionNode(config['pubsub#collection'], nodeIdentifier)
+				# root collection node
 				else:
-					node.collection = ''
+					added = collectionNode.addCollectionNode(None, nodeIdentifier)
+				
+				collectionNode.save()
 			else:
 				pass
 				
-			node.save()
 		except ResourceConflict:
 			raise error.NodeExists
 		except Exception as e:

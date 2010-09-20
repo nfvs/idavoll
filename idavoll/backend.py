@@ -305,18 +305,12 @@ class BackendService(service.Service, utility.EventDispatcher):
 		return True
 
 
-	def createNode(self, nodeIdentifier, requestor, options=None):
+	def createNode(self, nodeIdentifier, requestor, nodeType, options=None):
 		if not nodeIdentifier:
 			nodeIdentifier = 'generic/%s' % uuid.uuid4()
 
 		# accept only allowed node configuration options (self.nodeOptions)
 		if options:
-			# get node type from options, or use default
-			if 'pubsub#node_type' in options:
-				nodeType = options['pubsub#node_type']
-			else:
-				nodeType = 'leaf'
-			
 			config = self.storage.getDefaultConfiguration(nodeType)
 			for optionName, optionValue in options.iteritems():
 				if optionName in self.nodeOptions:
@@ -324,7 +318,7 @@ class BackendService(service.Service, utility.EventDispatcher):
 					
 		# default node configuration
 		else:
-			nodeType = 'leaf'
+			#nodeType = 'leaf'
 			config = self.storage.getDefaultConfiguration(nodeType)
 			config['pubsub#node_type'] = nodeType
 
@@ -690,8 +684,8 @@ class PubSubServiceFromBackend(PubSubService):
 		return d.addErrback(self._mapErrors)
 
 
-	def create(self, requestor, service, nodeIdentifier, options=None):
-		d = self.backend.createNode(nodeIdentifier, requestor, options)
+	def create(self, requestor, service, nodeIdentifier, nodeType='leaf', options=None):
+		d = self.backend.createNode(nodeIdentifier, requestor, nodeType, options)
 		return d.addErrback(self._mapErrors)
 
 
