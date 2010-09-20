@@ -66,16 +66,16 @@ class BackendService(service.Service, utility.EventDispatcher):
 					 "on_sub": "When a new subscription is processed"}
 				},
 			#nfvs:
-			"pubsub#node_type":
-				{"type": "list-single",
-				 "label": "Node type",
-				 "options": {
-					 "leaf": "Leaf Node",
-					 "collection": "Collection node"}
-				},
+			# "pubsub#node_type":
+			# 	{"type": "list-single",
+			# 	 "label": "Node type",
+			# 	 "options": {
+			# 		 "leaf": "Leaf Node",
+			# 		 "collection": "Collection node"}
+			# 	},
 			"pubsub#collection":
                 {"type": "text-single",
-                 "label": "Collection which the node belongs to"},
+                 "label": "Collection which the current node (leaf or collection) belongs to"},
 			}
 
 	subscriptionOptions = {
@@ -305,7 +305,7 @@ class BackendService(service.Service, utility.EventDispatcher):
 		return True
 
 
-	def createNode(self, nodeIdentifier, requestor, nodeType, options=None):
+	def createNode(self, nodeIdentifier, requestor, nodeType='leaf', options=None):
 		if not nodeIdentifier:
 			nodeIdentifier = 'generic/%s' % uuid.uuid4()
 
@@ -322,7 +322,7 @@ class BackendService(service.Service, utility.EventDispatcher):
 			config = self.storage.getDefaultConfiguration(nodeType)
 			config['pubsub#node_type'] = nodeType
 
-		d = self.storage.createNode(nodeIdentifier, requestor, config)
+		d = self.storage.createNode(nodeIdentifier, requestor, nodeType, config)
 		d.addCallback(lambda _: nodeIdentifier)
 		return d
 

@@ -60,7 +60,7 @@ class IBackendService(Interface):
         """
 
 
-    def createNode(nodeIdentifier, requestor):
+    def createNode(nodeIdentifier, owner, nodeType, config=None):
         """ Create a node.
 
         @return: a deferred that fires when the node has been created.
@@ -239,7 +239,7 @@ class IStorage(Interface):
         """
 
 
-    def createNode(nodeIdentifier, owner, config):
+    def createNode(nodeIdentifier, owner, nodeType, config=None):
         """
         Create new node.
 
@@ -253,6 +253,8 @@ class IStorage(Interface):
         @type nodeIdentifier: C{unicode}
         @param owner: JID of the new nodes's owner.
         @type owner: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @param nodeType: Type of the node (Leaf or Collection)
+        @type nodeType: C{unicode}
         @param config: Node configuration.
         @type config: C{dict}
         @return: deferred that fires on creation.
