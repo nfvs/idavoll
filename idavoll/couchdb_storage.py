@@ -94,6 +94,9 @@ class CouchStorage:
 				if not hasattr(self, 'send_last_published_item'):
 					self.send_last_published_item = 'on_sub'
 
+			if not hasattr(self, 'collection'):
+				self.collection = ''
+
 			if self['_id'] is None:
 				self['_id'] = self.key(node=self.node)
 				
@@ -248,6 +251,20 @@ class Storage:
 			return_node = CollectionNode(nodeIdentifier, configuration)
 			return_node.dbpool = self.dbpool
 		return return_node
+	
+	def getChildNodeIds(self, parentNodeIdentifier=''):
+		d = threads.deferToThread(self._getChildNodeIds, parentNodeIdentifier)
+		return d
+
+	def _getChildNodeIds(self, parentNodeIdentifier):
+		nodes = CouchStorage.Node.view('pubsub/nodes_by_parent',
+				startkey=[parentNodeIdentifier],
+				endkey=[parentNodeIdentifier, {}]
+				)
+		result = []
+		for node in nodes.iterator():
+			result.append(node.node)
+		return result
 
 
 	def getNodeIds(self):
@@ -269,14 +286,12 @@ class Storage:
 
 	def _createNode(self, nodeIdentifier, owner, config):
 		owner = owner.userhost()
- 		print 'createNodeOptions: %s' % config
 
 		if 'pubsub#node_type' in config:
 			nodeType = config['pubsub#node_type']
 		else:
 			nodeType = 'leaf'
 
-		print 'NodeType: %s' % nodeType
 		try:
 			# leaf node
 			if nodeType == 'leaf':

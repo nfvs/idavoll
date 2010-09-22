@@ -230,6 +230,17 @@ class IStorage(Interface):
         @return: deferred that returns a L{INode} providing object.
         """
 
+	def getChildNodeIds(parent):
+		"""
+		Return ids for all child collection and leaf nodes of the parent node.
+		If the parent node is empty, return all root collection nodes and leaf
+		nodes not associated with any collection
+	
+        @param nodeIdentifier: NodeID of the parent node.
+        @type nodeIdentifier: C{unicode}
+        @return: deferred that returns a list of NodeIDs (C{unicode}).
+		"""
+
 
     def getNodeIds():
         """

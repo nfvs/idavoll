@@ -117,6 +117,11 @@ class BackendService(service.Service, utility.EventDispatcher):
 		return d
 
 
+	# get child nodes (if parent is empty, get root and leafnodes not
+	# associated with any collection
+	def getChildNodes(self, parentNodeIdentifier=''):
+		return self.storage.getChildNodeIds(parentNodeIdentifier)
+
 	def getNodes(self):
 		return self.storage.getNodeIds()
 
@@ -648,14 +653,23 @@ class PubSubServiceFromBackend(PubSubService):
 		if self.hideNodes:
 			d = defer.succeed([])
 		elif nodeIdentifier:
-			# TODO: child nodes of 'nodeIdentifier'
-			d = defer.succeed([])
+			#d = defer.succeed([])
+			d = self.getChildNodes(requestor, target, nodeIdentifier)
 		else:
-			d = self.getNodes(requestor, target)
+			d = self.getChildNodes(requestor, target)
 
 		d.addCallback(lambda nodes: [disco.DiscoItem(target, node)
 									 for node in nodes])
 		return d
+	
+	# get root collection nodes and
+	# leaf nodes not associated with any collection
+	def getChildNodes(self, requestor, service, parentNodeIdentifier=''):
+		if service.resource:
+			return defer.succeed([])
+		d = self.backend.getChildNodes(parentNodeIdentifier)
+		return d.addErrback(self._mapErrors)
+
 
 	
 	def getNodes(self, requestor, service):
