@@ -22,6 +22,8 @@ from idavoll import error, iidavoll
 from twisted_utils import *
 #from xml_utils import *
 
+import os
+
 KEY_SEPARATOR = ':'
 COLLECTION_NODE_DOCID = 'nodecollection'
 
@@ -264,9 +266,11 @@ class Storage:
 				startkey=[parentNodeIdentifier],
 				endkey=[parentNodeIdentifier, {}]
 				)
+		# nodes: {'key': [parent, nodename]}
 		result = []
 		for node in nodes.iterator():
-			result.append(node.node)
+			result.append(node['key'][1])
+		#print 'result: %s' % result
 		return result
 
 
@@ -307,6 +311,8 @@ class Storage:
 							config['pubsub#send_last_published_item'],
 					date = datetime.datetime.utcnow()
 					)
+				if 'pubsub#collection' in config:
+					node.collection = config['pubsub#collection']
 				node.save()
 					
 			# collection node
@@ -396,7 +402,23 @@ class Storage:
 		try:
 			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + \
 					nodeIdentifier)
-			node.delete()
+			print 'nodeType: %s' % node.node_type
+			if node.node_type == 'leaf':
+				node.delete()
+			elif node.node_type == 'collection':
+				# TODO: find child nodes of this node, and set their parent
+				# as '' (no parent)
+				nodes = CouchStorage.Node.view('pubsub/nodes_by_collection',
+					startkey=[parentNodeIdentifier],
+					endkey=[parentNodeIdentifier, {}]
+				)
+				# nodes: {'key': [parent, nodename]}
+				result = []
+				for node in nodes.iterator():
+					result.append(node['key'][1])
+
+				# get all documents by id (result)
+
 		except ResourceNotFound:
 			raise error.NodeNotFound()
 		
