@@ -125,7 +125,7 @@ class BackendTest(unittest.TestCase):
 			def getDefaultConfiguration(self, nodeType):
 				return {}
 
-			def createNode(self, nodeIdentifier, requestor, nodeType, config):
+			def createNode(self, nodeIdentifier, requestor, config):
 				self.nodeIdentifier = nodeIdentifier
 				return defer.succeed(None)
 

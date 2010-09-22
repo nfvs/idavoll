@@ -13,6 +13,13 @@ from wokkel.iwokkel import IPubSubService
 from idavoll import __version__
 from idavoll.backend import BackendService
 
+import restkit
+
+DEFAULT_OPTIONS = {
+	'couchdb-host': 'localhost',
+	'couchdb-port': 5984
+}
+
 class Options(usage.Options):
 	optParameters = [
 		('jid', None, 'pubsub', 'JID this component will be available at'),
@@ -70,11 +77,23 @@ def makeService(config):
 		from idavoll.couchdb_storage import Storage
 		from restkit import SimplePool
 		from couchdbkit import Server
-		pool = SimplePool(keepalive=5) # pool of 5 connections to couchdb
-		server = Server(
-			'http://%s:%s/' % (config['dbhost'], config['dbport']),
-			pool_instance=pool)
-		db = server.get_or_create_db('pubsub')
+
+		# default arguments
+		if config['dbhost'] is None:
+			config['dbhost'] = DEFAULT_OPTIONS['couchdb-host']
+		if config['dbport'] is None:
+			config['dbport'] = DEFAULT_OPTIONS['couchdb-port']
+
+		try:
+			pool = SimplePool(keepalive=5) # pool of 5 connections to couchdb
+			server = Server(
+				'http://%s:%s/' % (config['dbhost'], config['dbport']),
+				pool_instance=pool)
+			db = server.get_or_create_db('pubsub')
+		except restkit.errors.RequestFailed as e:
+			print 'Error connecting to couchdb: %s' % e
+			exit(-1)
+
 		st = Storage(db)
 		
 		# upload design docs

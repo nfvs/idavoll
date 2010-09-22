@@ -27,9 +27,8 @@ COLLECTION_NODE_DOCID = 'nodecollection'
 
 # Data structures
 class CouchStorage:
-	class CollectionNode(Document):
-		doc_type = 'collection_node'
-		node_type = 'collection'
+	class CollectionNodeTree(Document):
+		doc_type = 'collection_node_tree'
 		collection = DictProperty()
 		
 		def save(self):
@@ -37,9 +36,15 @@ class CouchStorage:
 				self['_id'] = COLLECTION_NODE_DOCID
 			return Document.save(self)
 		
+		# adds a collection node to the collection node tree
+		# raises a error.NodeNotFound if the parent node doesn't exist
 		def addCollectionNode(self, parent, node):
 			path = []
-			found = self.findTreePath(self.collection, parent, node, path)
+			found = self.findTreePath(self.collection, parent, node, path)     
+
+			if not found:
+				raise error.NodeNotFound()
+
 			path.reverse()
 			print 'path: %s' % path
 			collection = self.collection
@@ -71,20 +76,24 @@ class CouchStorage:
 		node = StringProperty()
 		node_type = StringProperty()
 #		persist_items = DynamicProperty()
-		deliver_payloads = BooleanProperty()
-		send_last_published_item = StringProperty()
+#		deliver_payloads = BooleanProperty()
+#		send_last_published_item = StringProperty()
 		date = DateTimeProperty()
 		
 		def save(self):
 			# set defaults
 			if self.node_type is None:
 				self.node_type = 'leaf'
-			if self.deliver_payloads is None:
-				self.deliver_payloads = True
-			if self.send_last_published_item is None:
-				self.send_last_published_item = 'on_sub'
-			if self.node_type == 'leaf' and not hasattr(self, 'persist_items'):
-				self.persist_items = True
+
+			# set leaf node defauls
+			if self.node_type == 'leaf':
+				if not hasattr(self, 'persist_items'):
+					self.persist_items = True
+				if not hasattr(self, 'deliver_payloads'):
+					self.deliver_payloads = True
+				if not hasattr(self, 'send_last_published_item'):
+					self.send_last_published_item = 'on_sub'
+
 			if self['_id'] is None:
 				self['_id'] = self.key(node=self.node)
 				
@@ -96,12 +105,6 @@ class CouchStorage:
 		@staticmethod
 		def key(node=''):
 			return 'node' + KEY_SEPARATOR + node
-	
-	#class LeafNode(Node):
-		#persist_items = BooleanProperty() # dynamic property
-		
-	#class CollectionNode(Node):
-	#	pass
 
 	class Entity(Document):
 		doc_type = 'entity'
@@ -126,15 +129,18 @@ class CouchStorage:
 		affiliation = StringProperty()
 		
 		def save(self):
-			self['_id'] = self.key(entity=self.entity, node=self.node, affiliation=self.affiliation)
+			self['_id'] = self.key(entity=self.entity, node=self.node,
+								   affiliation=self.affiliation)
 			Document.save(self)
 		
 		def key(self):
-			return self.key(entity=self.entity, node=self.node, affiliation=self.affiliation)
+			return self.key(entity=self.entity, node=self.node,
+							affiliation=self.affiliation)
 
 		@staticmethod
 		def key(entity='', node='', affiliation=''):
-			return 'affiliation' + KEY_SEPARATOR + entity + KEY_SEPARATOR + node + KEY_SEPARATOR + affiliation
+			return 'affiliation' + KEY_SEPARATOR + entity + KEY_SEPARATOR + \
+					node + KEY_SEPARATOR + affiliation
 	
 	class Subscription(Document):
 		doc_type = 'subscription'
@@ -148,15 +154,18 @@ class CouchStorage:
 			if self.state is None:
 				self.state = 'subscribed'
 			if self['_id'] is None:
-				self['_id'] = self.key(node=self.node, entity=self.entity, resource=self.resource)
+				self['_id'] = self.key(node=self.node, entity=self.entity,
+									   resource=self.resource)
 			return Document.save(self)
 		
 		def key(self):
-			return self.key(node=self.node, entity=self.entity, resource=self.resource)
+			return self.key(node=self.node, entity=self.entity,
+							resource=self.resource)
 
 		@staticmethod
 		def key(node='', entity='', resource=''):
-			return 'subscription' + KEY_SEPARATOR + node + KEY_SEPARATOR + entity + KEY_SEPARATOR + resource
+			return 'subscription' + KEY_SEPARATOR + node + KEY_SEPARATOR + \
+					entity + KEY_SEPARATOR + resource
 	
 	class Item(Document):
 		doc_type = 'item'
@@ -193,8 +202,8 @@ class Storage:
 				"pubsub#send_last_published_item": 'on_sub',
 			},
 			'collection': {
-				"pubsub#deliver_payloads": True,
-				"pubsub#send_last_published_item": 'on_sub',
+				#"pubsub#deliver_payloads": True,
+				#"pubsub#send_last_published_item": 'on_sub',
 			}
 	}
 
@@ -204,7 +213,7 @@ class Storage:
 		
 		# associate datastructures to the db
 		CouchStorage.Node.set_db(self.dbpool)
-		CouchStorage.CollectionNode.set_db(self.dbpool)
+		CouchStorage.CollectionNodeTree.set_db(self.dbpool)
 		CouchStorage.Entity.set_db(self.dbpool)
 		CouchStorage.Affiliation.set_db(self.dbpool)
 		CouchStorage.Subscription.set_db(self.dbpool)
@@ -220,7 +229,8 @@ class Storage:
 		configuration = {}
 		
 		try:
-			node = CouchStorage.Node.get(CouchStorage.Node.key(node=nodeIdentifier))
+			node = CouchStorage.Node.get(
+					CouchStorage.Node.key(node=nodeIdentifier))
 		except ResourceNotFound:
 			raise error.NodeNotFound()
 
@@ -228,14 +238,13 @@ class Storage:
 			configuration = {
 					'pubsub#persist_items': node.persist_items,
 					'pubsub#deliver_payloads': node.deliver_payloads,
-					'pubsub#send_last_published_item': node.send_last_published_item}
+					'pubsub#send_last_published_item':
+							node.send_last_published_item}
 			
 			return_node = LeafNode(nodeIdentifier, configuration)
 			return_node.dbpool = self.dbpool
 		elif node.node_type == 'collection':
-			configuration = {
-					'pubsub#deliver_payloads': node.deliver_payloads,
-					'pubsub#send_last_published_item': node.send_last_published_item}
+			configuration = {}
 			return_node = CollectionNode(nodeIdentifier, configuration)
 			return_node.dbpool = self.dbpool
 		return return_node
@@ -253,21 +262,22 @@ class Storage:
 			result.append(node.node)
 		return result
 
-	def createNode(self, nodeIdentifier, owner, config):
-		d = threads.deferToThread(self._createNode, nodeIdentifier, owner, config)
+	def createNode(self, nodeIdentifier, owner, config=None):
+		d = threads.deferToThread(self._createNode, nodeIdentifier, owner,
+								  config)
 		return d
 
 	def _createNode(self, nodeIdentifier, owner, config):
-		#if config['pubsub#node_type'] != 'leaf':
-		#	raise error.NoCollections()
-
 		owner = owner.userhost()
+ 		print 'createNodeOptions: %s' % config
+
+		if 'pubsub#node_type' in config:
+			nodeType = config['pubsub#node_type']
+		else:
+			nodeType = 'leaf'
+
+		print 'NodeType: %s' % nodeType
 		try:
-			if 'pubsub#node_type' in config:
-				nodeType = config['pubsub#node_type']
-			else:
-				nodeType = 'leaf'
-				
 			# leaf node
 			if nodeType == 'leaf':
 				node = CouchStorage.Node(
@@ -275,33 +285,55 @@ class Storage:
 					node_type = 'leaf',
 					persist_items = config['pubsub#persist_items'],
 					deliver_payloads = config['pubsub#deliver_payloads'],
-					send_last_published_item = config['pubsub#send_last_published_item'],
+					send_last_published_item =
+							config['pubsub#send_last_published_item'],
+					date = datetime.datetime.utcnow()
+					)
+				node.save()
+					
+			# collection node
+			elif nodeType == 'collection':
+
+				# first create node
+				node = CouchStorage.Node(
+					node = nodeIdentifier,
+					node_type = 'collection',
 					date = datetime.datetime.utcnow()
 					)
 				if 'pubsub#collection' in config:
 					node.collection = config['pubsub#collection']
 				node.save()
-					
-			# collection node
-			elif nodeType == 'collection':
+
+				# update collection node tree
 				try:
-					collectionNode = CouchStorage.CollectionNode.get(COLLECTION_NODE_DOCID)
-				except:
-					collectionNode = CouchStorage.CollectionNode()
+					collectionNode = CouchStorage.CollectionNodeTree.get(
+						COLLECTION_NODE_DOCID)
+				except ResourceNotFound:
+					collectionNode = CouchStorage.CollectionNodeTree()
 				
-				# find the collection node in the tree, append the current collection node
-				if 'pubsub#collection' in config:
-					added = collectionNode.addCollectionNode(config['pubsub#collection'], nodeIdentifier)
-				# root collection node
-				else:
-					added = collectionNode.addCollectionNode(None, nodeIdentifier)
-				
+				# find the collection node in the tree,
+				# append the current collection node
+				try:
+					if 'pubsub#collection' in config:
+						added = collectionNode.addCollectionNode(
+								config['pubsub#collection'], nodeIdentifier)
+					# root collection node
+					else:
+						added = collectionNode.addCollectionNode(None,
+								nodeIdentifier)
+				#
+				except error.NodeNotFound:
+					node.delete()
+					raise error.NodeNotFound()
+
 				collectionNode.save()
 			else:
-				pass
+				raise error.Error(msg='Unknown node type')
 				
 		except ResourceConflict:
-			raise error.NodeExists
+			raise error.NodeExists()
+		except error.NodeNotFound:
+			raise error.NodeNotFound()
 		except Exception as e:
 			print 'Error: ' + str(e)
 			raise error.Error()
@@ -309,7 +341,7 @@ class Storage:
 		# save entity
 		try:
 			entity = CouchStorage.Entity.get('entity' + KEY_SEPARATOR + owner)
-		except:
+		except ResourceNotFound:
 			entity = CouchStorage.Entity(jid=owner)
 			entity.save()			
 			pass
@@ -323,7 +355,9 @@ class Storage:
 				affiliation='owner',
 			)
 			# 'affiliation' : entity : node : affiliation
-			#affiliation['_id'] = 'affiliation:' + owner + ':' + nodeIdentifier + ':owner'
+			#affiliation['_id'] = 'affiliation:' + owner + ':' + 
+			#nodeIdentifier + ':owner'
+
 			#print affiliation['_id']
 			affiliation.save()
 		except ResourceConflict:
@@ -342,9 +376,10 @@ class Storage:
 		
 		# 1. delete node
 		try:
-			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + nodeIdentifier)
+			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + \
+					nodeIdentifier)
 			node.delete()
-		except:
+		except ResourceNotFound:
 			raise error.NodeNotFound()
 		
 		# 2. delete affiliations
@@ -411,8 +446,9 @@ class Storage:
 			subscriptions = []
 			for db_subscription in db_subscriptions:
 				subscriber = jid.internJID('%s/%s' % (db_subscription.entity,
-													  db_subscription.resource))
-				subscription = Subscription(db_subscription.node, subscriber, db_subscription.state)
+						 							 db_subscription.resource))
+				subscription = Subscription(db_subscription.node, subscriber,
+											db_subscription.state)
 				subscriptions.append(subscription)
 			return subscriptions
 
@@ -442,7 +478,8 @@ class Node:
 
 	def _checkNodeExists(self):
 		try:
-			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + self.nodeIdentifier)
+			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + \
+					self.nodeIdentifier)
 		except ResourceNotFound:
 			raise error.NodeNotFound()			
 
@@ -470,10 +507,12 @@ class Node:
 		self._checkNodeExists()
 		
 		try:
-			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + self.nodeIdentifier)
+			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + \
+					self.nodeIdentifier)
 			node.persist_items = config["pubsub#persist_items"]
 			node.deliver_payloads = config["pubsub#deliver_payloads"]
-			node.send_last_published_item = config["pubsub#send_last_published_item"]
+			node.send_last_published_item = \
+					config["pubsub#send_last_published_item"]
 			node.save() # update
 		except Exception as e:
 			raise error.NodeNotFound()
@@ -524,7 +563,8 @@ class Node:
 				userhost + KEY_SEPARATOR +
 				resource
 				)
-			return Subscription(self.nodeIdentifier, subscriber, subscription.state)
+			return Subscription(self.nodeIdentifier, subscriber,
+								subscription.state)
 		except ResourceNotFound as e:
 			return None
 
@@ -550,7 +590,8 @@ class Node:
 
 		subscriptions = []
 		for subscription in db_subscriptions:
-			subscriber = jid.JID('%s/%s' % (subscription.entity, subscription.resource))
+			subscriber = jid.JID('%s/%s' % (subscription.entity, \
+					subscription.resource))
 
 			options = {}
 			if subscription.subscription_type:
@@ -565,7 +606,8 @@ class Node:
 
 
 	def addSubscription(self, subscriber, state, config):
-		return threads.deferToThread(self._addSubscription, subscriber, state, config)
+		return threads.deferToThread(self._addSubscription, subscriber,
+									 state, config)
 
 
 	def _addSubscription(self, subscriber, state, config):
@@ -608,11 +650,10 @@ class Node:
 
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''
-		key = CouchStorage.Subscription.key(node=self.nodeIdentifier, entity=userhost, resource=resource)
+		key = CouchStorage.Subscription.key(node=self.nodeIdentifier, 
+				entity=userhost, resource=resource)
 		try:
-			subscription = CouchStorage.Subscription.get(
-				key
-				)
+			subscription = CouchStorage.Subscription.get(key)
 		except:
 			raise error.NotSubscribed()
 		
@@ -688,7 +729,9 @@ class LeafNode(Node):
 		# if it doesnt exist, create a new one
 		try:
 			item = CouchStorage.Item.get(
-				CouchStorage.Item.key(item_id=item['id'], node=self.nodeIdentifier)
+				CouchStorage.Item.key(
+					item_id=item['id'],
+					node=self.nodeIdentifier)
 				)
 			item.publisher = publisher.full()
 			item.data = data
