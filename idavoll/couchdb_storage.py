@@ -252,12 +252,15 @@ class Storage:
 			return_node.dbpool = self.dbpool
 		return return_node
 	
+	# returns ids of all nodes for the given parent;
+	# if parent is empty, returns all root collection nodes
+	# and leaf nodes not associated with any collection
 	def getChildNodeIds(self, parentNodeIdentifier=''):
 		d = threads.deferToThread(self._getChildNodeIds, parentNodeIdentifier)
 		return d
 
 	def _getChildNodeIds(self, parentNodeIdentifier):
-		nodes = CouchStorage.Node.view('pubsub/nodes_by_parent',
+		nodes = CouchStorage.Node.view('pubsub/nodes_by_collection',
 				startkey=[parentNodeIdentifier],
 				endkey=[parentNodeIdentifier, {}]
 				)

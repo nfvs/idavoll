@@ -653,7 +653,6 @@ class PubSubServiceFromBackend(PubSubService):
 		if self.hideNodes:
 			d = defer.succeed([])
 		elif nodeIdentifier:
-			#d = defer.succeed([])
 			d = self.getChildNodes(requestor, target, nodeIdentifier)
 		else:
 			d = self.getChildNodes(requestor, target)
