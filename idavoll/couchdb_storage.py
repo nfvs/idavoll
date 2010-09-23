@@ -37,13 +37,47 @@ class CouchStorage:
 			if not self['_id']:
 				self['_id'] = COLLECTION_NODE_DOCID
 			return Document.save(self)
+
+		def associateNodesWithCollection(self, nodes, collectionName):
+			if isinstance(nodes, types.StringTypes):
+				nodes = [nodes]
+
+			for node in nodes:
+				# 1. delete the old position
+				self.removeCollectionNode(node)
+
+				# 2. put it in the new position
+				# get the path to the collection
+				self.addCollectionNode(collectionName, node)
+				
 		
+		def getChildNodes(self, node):
+			childNodes = []
+			self._getChildNodes(node, self.collection, childNodes)
+			return childNodes
+
+		def _getChildNodes(self, node, collection, childNodes):
+			if not node or node is '':
+				return
+			
+			for k in collection.iterkeys():
+				if k == node:
+					for child in collection[k].iterkeys():
+						childNodes.append(child)
+						self._getChildNodes(child, collection[k], childNodes)
+				else:
+					self._getChildNodes(node, collection[k], childNodes)
+
 		# adds a collection node to the collection node tree
 		# raises a error.NodeNotFound if the parent node doesn't exist
 		def addCollectionNode(self, parent, node):
-			path = []
-			found = self.findTreePath(self.collection, parent, node, path)     
+			if not parent or parent == '':
+				self.collection[node] = {}
+				return
 
+			path = []
+			found = self._findTreePath(self.collection, parent, path)
+			
 			if not found:
 				raise error.NodeNotFound()
 
@@ -53,21 +87,33 @@ class CouchStorage:
 			for p in path:
 				collection = collection[p]
 			collection[node] = {}
-			print 'collection: %s' % self.collection
+
+		def removeCollectionNode(self, node):
+			# get the path to the node
+			path = []
+			found = self._findTreePath(self.collection, node, path)
+			if not found:
+				raise error.NodeNotFound()
+
+			path.reverse()
+			path.pop()
+
+			# walk the path to the node, and delete it
+			collection = self.collection
+			for p in path:
+				collection = collection[p]
+			del collection[node]
+
 
 		# returns the tree path to the node
-		def findTreePath(self, root, parent, node, result):
-			# root node
-			if not parent or parent is '':
-				return True
-		
+		def _findTreePath(self, root, node, result):
 			# node in this level
-			if parent in root:
-				result.append(parent)
+			if node in root:
+				result.append(node)
 				return True
 			else:
 				for k in root.iterkeys():
-					if self.findTreePath(root[k], parent, node, result):
+					if self._findTreePath(root[k], node, result):
 						result.append(k)
 						return True
 				return False
@@ -263,14 +309,12 @@ class Storage:
 
 	def _getChildNodeIds(self, parentNodeIdentifier):
 		nodes = CouchStorage.Node.view('pubsub/nodes_by_collection',
-				startkey=[parentNodeIdentifier],
-				endkey=[parentNodeIdentifier, {}]
+				key=parentNodeIdentifier
 				)
-		# nodes: {'key': [parent, nodename]}
-		result = []
-		for node in nodes.iterator():
-			result.append(node['key'][1])
-		#print 'result: %s' % result
+		if nodes.count() > 0:
+			result = nodes.all()[0]['value']
+		else:
+			result = []
 		return result
 
 
@@ -404,24 +448,52 @@ class Storage:
 					nodeIdentifier)
 			print 'nodeType: %s' % node.node_type
 			if node.node_type == 'leaf':
-				node.delete()
+				pass
+				#node.delete()
 			elif node.node_type == 'collection':
-				# TODO: find child nodes of this node, and set their parent
+				# find child nodes of this node, and set their parent
 				# as '' (no parent)
-				nodes = CouchStorage.Node.view('pubsub/nodes_by_collection',
-					startkey=[parentNodeIdentifier],
-					endkey=[parentNodeIdentifier, {}]
-				)
-				# nodes: {'key': [parent, nodename]}
-				result = []
-				for node in nodes.iterator():
-					result.append(node['key'][1])
 
-				# get all documents by id (result)
+				# first get nodeTree document
+				collectionTree = CouchStorage.CollectionNodeTree.get(
+						COLLECTION_NODE_DOCID)
+
+				# get child COLLECTION NODES only
+				children = collectionTree.getChildNodes(nodeIdentifier)
+
+				# add to-be-deleted node to the list, as we also
+				# want child nodes of it
+				children.append(nodeIdentifier)
+
+				# get all nodes (collection + leaf) descendant of
+				# nodeIdentifier
+				nodes = CouchStorage.Node.view(
+						'pubsub/nodes_by_collection',
+						keys=children,
+						group=True,
+						)
+
+				orphanNodes = []
+				for n in nodes.iterator():
+					for v in n['value']:
+						orphanNodes.append(v)
+
+				# associateNodesWith root collection
+				self._associateNodesWithCollection(orphanNodes, '')
+
+				
+				# delete node from tree
+				collectionTree = CouchStorage.CollectionNodeTree.get(
+						COLLECTION_NODE_DOCID)
+				collectionTree.removeCollectionNode(nodeIdentifier)
+				collectionTree.save()
+
+				# delete node
+				node.delete()
 
 		except ResourceNotFound:
 			raise error.NodeNotFound()
-		
+
 		# 2. delete affiliations
 		try:
 			# delete affiliations
@@ -466,6 +538,38 @@ class Storage:
 		except Exception as e:
 			print e
 			pass
+
+
+	# TODO: unit-test
+	def associateNodesWithCollection(self, nodeIds, collection):
+		return threads.deferToThread(self._associateNodesWithCollection,
+									 nodeIds, collection)
+	
+	def _associateNodesWithCollection(self, nodeIds, collection):
+		nodeIds = list(nodeIds)
+
+		# first get nodeTree document
+		collectionTree = CouchStorage.CollectionNodeTree.get(
+				COLLECTION_NODE_DOCID)
+
+		nodes = CouchStorage.Node.view(
+				'pubsub/nodes_by_node',
+				keys=nodeIds,
+				)
+
+		for node in nodes.iterator():
+			if node.node_type == 'collection':
+				collectionTree.associateNodesWithCollection(node.node,
+															collection)
+			node.collection = collection
+
+		nodes = [n.to_json() for n in nodes]
+		try:
+			self.dbpool.bulk_save(nodes)
+			collectionTree.save()
+		except Exception as e:
+			print 'Error: %s' % e
+
 
 	def getAffiliations(self, entity):
 		return threads.deferToThread(self._getAffiliations, entity)
