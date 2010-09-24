@@ -141,6 +141,11 @@ class CouchStorage:
 					self.deliver_payloads = True
 				if not hasattr(self, 'send_last_published_item'):
 					self.send_last_published_item = 'on_sub'
+			elif self.node_type == 'collection':
+				if not hasattr(self, 'subscription_type'):
+					self.subscription_type = 'nodes'
+				if not hasattr(self, 'subscription_depth'):
+					self.subscription_depth = '1'
 
 			if not hasattr(self, 'collection'):
 				self.collection = ''
@@ -251,8 +256,12 @@ class Storage:
 				"pubsub#persist_items": True,
 				"pubsub#deliver_payloads": True,
 				"pubsub#send_last_published_item": 'on_sub',
+				"pubsub#collection": '',
 			},
 			'collection': {
+				"pubsub#collection": '',
+				"pubsub#subscription_type": 'nodes',
+				"pubsub#subscription_depth": '1',
 				#"pubsub#deliver_payloads": True,
 				#"pubsub#send_last_published_item": 'on_sub',
 			}
@@ -290,12 +299,16 @@ class Storage:
 					'pubsub#persist_items': node.persist_items,
 					'pubsub#deliver_payloads': node.deliver_payloads,
 					'pubsub#send_last_published_item':
-							node.send_last_published_item}
+							node.send_last_published_item,
+					'pubsub#collection': node.collection}
 			
 			return_node = LeafNode(nodeIdentifier, configuration)
 			return_node.dbpool = self.dbpool
 		elif node.node_type == 'collection':
-			configuration = {}
+			configuration = {
+					'pubsub#collection': node.collection,
+					'pubsub#subscription_type': node.subscription_type,
+					'pubsub#subscription_depth': node.subscription_depth}
 			return_node = CollectionNode(nodeIdentifier, configuration)
 			return_node.dbpool = self.dbpool
 		return return_node
@@ -654,13 +667,46 @@ class Node:
 		try:
 			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + \
 					self.nodeIdentifier)
+		except Exception:
+			raise error.NodeNotFound()
+
+		if node.node_type == 'leaf':
 			node.persist_items = config["pubsub#persist_items"]
 			node.deliver_payloads = config["pubsub#deliver_payloads"]
 			node.send_last_published_item = \
-					config["pubsub#send_last_published_item"]
+				config["pubsub#send_last_published_item"]
+
+			if 'pubsub#collection' in config:
+				node.collection = config['pubsub#collection']
+
 			node.save() # update
-		except Exception as e:
-			raise error.NodeNotFound()
+		elif node.node_type == 'collection':
+
+			if 'pubsub#collection' in config:
+
+				collectionTree = CouchStorage.CollectionNodeTree.get(
+						COLLECTION_NODE_DOCID)
+
+				# associate node with new collection
+				try:
+					collectionTree.associateNodesWithCollection(
+							self.nodeIdentifier,
+							config['pubsub#collection']
+							)
+					collectionTree.save()
+
+				# not allowed (e.g. would create a cycle)
+				# TODO: respond with a conflict when needed
+				except error.NodeNotFound as e:
+					raise error.NodeNotFound()
+	
+				node.collection = config['pubsub#collection']
+
+			node.subscription_type = config['pubsub#subscription_type']
+			node.subscription_depth = config['pubsub#subscription_depth']
+
+			node.save() # update
+
 
 	def _setCachedConfiguration(self, void, config):
 		self._config = config
@@ -995,8 +1041,7 @@ class LeafNode(Node):
 
 class CollectionNode(Node):
 
-	nodeType = 'collection'
-
+	nodeType = 'leaf'
 
 
 class GatewayStorage(object):
