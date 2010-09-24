@@ -546,7 +546,8 @@ class Storage:
 									 nodeIds, collection)
 	
 	def _associateNodesWithCollection(self, nodeIds, collection):
-		nodeIds = list(nodeIds)
+		if isinstance(nodeIds, types.StringTypes):
+			nodeIds = [nodeIds]
 
 		# first get nodeTree document
 		collectionTree = CouchStorage.CollectionNodeTree.get(
