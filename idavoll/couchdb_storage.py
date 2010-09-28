@@ -82,7 +82,7 @@ class CouchStorage:
 				raise error.NodeNotFound()
 
 			path.reverse()
-			print 'path: %s' % path
+			#print 'path: %s' % path
 			collection = self.collection
 			for p in path:
 				collection = collection[p]
@@ -104,6 +104,15 @@ class CouchStorage:
 				collection = collection[p]
 			del collection[node]
 
+		def getParentNodes(self, node):
+			path = []
+			found = self._findTreePath(self.collection, node, path)
+			
+			if not found:
+				return []
+
+			path.reverse()
+			return path
 
 		# returns the tree path to the node
 		def _findTreePath(self, root, node, result):
@@ -202,6 +211,7 @@ class CouchStorage:
 		doc_type = 'subscription'
 		entity = StringProperty()
 		node = StringProperty()
+		node_type = StringProperty()
 		resource = StringProperty()
 		subscription_type = StringProperty()
 		subscription_depth = StringProperty()
@@ -260,8 +270,6 @@ class Storage:
 			},
 			'collection': {
 				"pubsub#collection": '',
-				"pubsub#subscription_type": 'nodes',
-				"pubsub#subscription_depth": '1',
 				#"pubsub#deliver_payloads": True,
 				#"pubsub#send_last_published_item": 'on_sub',
 			}
@@ -296,6 +304,7 @@ class Storage:
 
 		if node.node_type == 'leaf':
 			configuration = {
+					'pubsub#node_type': 'leaf',
 					'pubsub#persist_items': node.persist_items,
 					'pubsub#deliver_payloads': node.deliver_payloads,
 					'pubsub#send_last_published_item':
@@ -306,9 +315,8 @@ class Storage:
 			return_node.dbpool = self.dbpool
 		elif node.node_type == 'collection':
 			configuration = {
-					'pubsub#collection': node.collection,
-					'pubsub#subscription_type': node.subscription_type,
-					'pubsub#subscription_depth': node.subscription_depth}
+					'pubsub#node_type': 'collection',
+					'pubsub#collection': node.collection}
 			return_node = CollectionNode(nodeIdentifier, configuration)
 			return_node.dbpool = self.dbpool
 		return return_node
@@ -348,6 +356,7 @@ class Storage:
 								  config)
 		return d
 
+	# TODO: notification for parent collection nodes, subscription_type=nodes
 	def _createNode(self, nodeIdentifier, owner, config):
 		owner = owner.userhost()
 
@@ -459,7 +468,7 @@ class Storage:
 		try:
 			node = CouchStorage.Node.get('node' + KEY_SEPARATOR + \
 					nodeIdentifier)
-			print 'nodeType: %s' % node.node_type
+
 			if node.node_type == 'leaf':
 				pass
 				#node.delete()
@@ -583,7 +592,34 @@ class Storage:
 			collectionTree.save()
 		except Exception as e:
 			print 'Error: %s' % e
+	
+	# TODO: unit-test
+	def setSubscriptionOptions(self, nodeIdentifier, subscriber, options,
+							   subscriptionIdentifier=None, sender=None):
+		return threads.deferToThread(self._setSubscriptionOptions,
+				nodeIdentifier, subscriber, options, subscriptionIdentifier,
+				sender)
 
+	# TODO: JID resource??
+	def _setSubscriptionOptions(self, nodeIdentifier, subscriber, options,
+								subscriptionIdentifier=None, sender=None):
+		userhost = subscriber.userhost()
+		try:
+			subscription = CouchStorage.Subscription.get('subscription' +
+					KEY_SEPARATOR + nodeIdentifier + KEY_SEPARATOR + userhost +
+					KEY_SEPARATOR)
+			
+			if 'pubsub#subscription_type' in options:
+				subscription.subscription_type = options['pubsub#subscription_type']
+			if 'pubsub#subscription_depth' in options:
+				subscription.subscription_depth = options['pubsub#subscription_depth']
+			
+			subscription.save()
+		except ResourceNotFound:
+			#raise error.
+			pass
+	
+	# TODO: getSubscriptionOptions()
 
 	def getAffiliations(self, entity):
 		return threads.deferToThread(self._getAffiliations, entity)
@@ -702,9 +738,6 @@ class Node:
 	
 				node.collection = config['pubsub#collection']
 
-			node.subscription_type = config['pubsub#subscription_type']
-			node.subscription_depth = config['pubsub#subscription_depth']
-
 			node.save() # update
 
 
@@ -763,21 +796,45 @@ class Node:
 	def getSubscriptions(self, state=None):
 		return threads.deferToThread(self._getSubscriptions, state)
 
-
 	def _getSubscriptions(self, state):
 		self._checkNodeExists()
+
+		# get config
+		config = self.getConfiguration()
+		collection = config['pubsub#collection']
+
+		# belongs to a collection node,
+		# get subscriptions for node and parents
+		if collection is not '':
+
+			# first get nodeTree document
+			collectionTree = CouchStorage.CollectionNodeTree.get(
+					COLLECTION_NODE_DOCID)
+
+			# get parent nodes of this collection
+			keys = collectionTree.getParentNodes(collection)
+
+			keys.append(self.nodeIdentifier)
+
+		# no collection, get only subscriptions for the node
+		else:
+			keys = [self.nodeIdentifier]
+
+
+		#print 'Keys: %s' % keys
 		
 		if state:
+			keys = [[k, state] for k in keys]
 			db_subscriptions = CouchStorage.Subscription.view(
 				'pubsub/subscriptions_by_node_state',
-				key=[self.nodeIdentifier, state]
+				keys=keys
 				)
 		else:
 			db_subscriptions = CouchStorage.Subscription.view(
-				'pubsub/subscriptions_by_node_state',
-				startkey=[self.nodeIdentifier],
-				endkey=[self.nodeIdentifier, {}]
+				'pubsub/subscriptions_by_node',
+				keys=keys
 				)
+
 
 		subscriptions = []
 		for subscription in db_subscriptions:
@@ -786,15 +843,19 @@ class Node:
 
 			options = {}
 			if subscription.subscription_type:
-				options['pubsub#subscription_type'] = subscription_type;
+				options['pubsub#subscription_type'] = subscription.subscription_type;
 			if subscription.subscription_depth:
-				options['pubsub#subscription_depth'] = subscription_depth;
+				options['pubsub#subscription_depth'] = subscription.subscription_depth;
 
-			subscriptions.append(Subscription(self.nodeIdentifier, subscriber,
-											  subscription.state, options))
+			# notify only for leaf nodes, or subscription type of 'items'
+			if subscription.node_type == 'leaf' or \
+					subscription.subscription_type == 'items':
+				subscriptions.append(Subscription(self.nodeIdentifier,
+						subscriber, subscription.state, options))
 
+		#print 'subscriptions: %s' % [s.toElement().toXml() for s in subscriptions]
 		return subscriptions
-
+	
 
 	def addSubscription(self, subscriber, state, config):
 		return threads.deferToThread(self._addSubscription, subscriber,
@@ -807,8 +868,8 @@ class Node:
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''
 
-		subscription_type = config.get('pubsub#subscription_type')
-		subscription_depth = config.get('pubsub#subscription_depth')
+		subscription_type = config.get('pubsub#subscription_type') or 'nodes'
+		subscription_depth = config.get('pubsub#subscription_depth') or '1'
 
 		try:
 			# jid must be unique
@@ -822,6 +883,7 @@ class Node:
 		try:
 			subscription = CouchStorage.Subscription(
 				node=self.nodeIdentifier,
+				node_type = self._config['pubsub#node_type'],
 				entity=userhost,
 				resource=resource,
 				state=state,
@@ -1037,11 +1099,15 @@ class LeafNode(Node):
 			response = self.dbpool.bulk_delete(items) # FIXME: returns None (why?)
 		except Exception as e:
 			print e
+	
+
+
+
 		
 
 class CollectionNode(Node):
 
-	nodeType = 'leaf'
+	nodeType = 'collection'
 
 
 class GatewayStorage(object):

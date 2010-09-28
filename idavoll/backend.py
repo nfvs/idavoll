@@ -52,6 +52,17 @@ class BackendService(service.Service, utility.EventDispatcher):
 	implements(iidavoll.IBackendService)
 
 	nodeOptions = {
+			#nfvs:
+			 "pubsub#node_type":
+			 	{"type": "list-single",
+			 	 "label": "Node type",
+			 	 "options": {
+			 		 "leaf": "Leaf Node",
+			 		 "collection": "Collection node"}
+			 	},
+			"pubsub#collection":
+                {"type": "text-single",
+                 "label": "Collection which the current node (leaf or collection) belongs to"},
 			"pubsub#persist_items":
 				{"type": "boolean",
 				 "label": "Persist items to storage"},
@@ -65,17 +76,6 @@ class BackendService(service.Service, utility.EventDispatcher):
 					 "never": "Never",
 					 "on_sub": "When a new subscription is processed"}
 				},
-			#nfvs:
-			# "pubsub#node_type":
-			# 	{"type": "list-single",
-			# 	 "label": "Node type",
-			# 	 "options": {
-			# 		 "leaf": "Leaf Node",
-			# 		 "collection": "Collection node"}
-			# 	},
-			"pubsub#collection":
-                {"type": "text-single",
-                 "label": "Collection which the current node (leaf or collection) belongs to"},
 			}
 
 	subscriptionOptions = {
@@ -168,24 +168,29 @@ class BackendService(service.Service, utility.EventDispatcher):
 			raise error.NoPublishing()
 
 		configuration = node.getConfiguration()
-		persistItems = configuration["pubsub#persist_items"]
-		deliverPayloads = configuration["pubsub#deliver_payloads"]
 
-		if items and not persistItems and not deliverPayloads:
-			raise error.ItemForbidden()
-		elif not items and (persistItems or deliverPayloads):
-			raise error.ItemRequired()
+		if node.nodeType == 'leaf':
+			persistItems = configuration["pubsub#persist_items"]
+			deliverPayloads = configuration["pubsub#deliver_payloads"]
 
-		if persistItems or deliverPayloads:
-			for item in items:
-				item.uri = None
-				item.defaultUri = None
-				if not item.getAttribute("id"):
-					item["id"] = str(uuid.uuid4())
+			if items and not persistItems and not deliverPayloads:
+				raise error.ItemForbidden()
+			elif not items and (persistItems or deliverPayloads):
+				raise error.ItemRequired()
 
-		if persistItems:
-			d = node.storeItems(items, requestor)
+			if persistItems or deliverPayloads:
+				for item in items:
+					item.uri = None
+					item.defaultUri = None
+					if not item.getAttribute("id"):
+						item["id"] = str(uuid.uuid4())
+
+			if persistItems:
+				d = node.storeItems(items, requestor)
+			else:
+				d = defer.succeed(None)
 		else:
+			deliverPayloads = False # ??
 			d = defer.succeed(None)
 
 		d.addCallback(self._doNotify, node.nodeIdentifier, items,
@@ -362,6 +367,20 @@ class BackendService(service.Service, utility.EventDispatcher):
 		d.addCallback(self._doSetNodeConfiguration, options)
 		return d
 
+	def setSubscriptionOptions(self, nodeIdentifier, subscriber, options,
+							   subscriptionIdentifier=None, sender=None):
+		if not nodeIdentifier:
+			return defer.fail(error.noRootNode())
+		
+		# validate subscription options
+		validOptions = {}
+		for optName, optValue in options.iteritems():
+			if optName in self.subscriptionOptions:
+				validOptions[optName] = optValue
+		
+		d = self.storage.setSubscriptionOptions(nodeIdentifier, subscriber,
+				validOptions, subscriptionIdentifier, sender)
+		return d
 
 	def _doSetNodeConfiguration(self, result, options):
 		node, affiliation = result
@@ -727,6 +746,11 @@ class PubSubServiceFromBackend(PubSubService):
 												requestor)
 		return d.addErrback(self._mapErrors)
 
+	def setOptions(self, service, nodeIdentifier, subscriber,
+				   options, subscriptionIdentifier=None, sender=None):
+		d = self.backend.setSubscriptionOptions(nodeIdentifier, subscriber,
+				options, subscriptionIdentifier, sender)
+		return d
 
 	def items(self, requestor, service, nodeIdentifier, maxItems,
 					itemIdentifiers):
