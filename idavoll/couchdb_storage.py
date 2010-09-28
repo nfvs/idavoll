@@ -604,10 +604,12 @@ class Storage:
 	def _setSubscriptionOptions(self, nodeIdentifier, subscriber, options,
 								subscriptionIdentifier=None, sender=None):
 		userhost = subscriber.userhost()
+		resource = subscriber.resource or ''
+		
 		try:
 			subscription = CouchStorage.Subscription.get('subscription' +
 					KEY_SEPARATOR + nodeIdentifier + KEY_SEPARATOR + userhost +
-					KEY_SEPARATOR)
+					KEY_SEPARATOR + resource)
 			
 			if 'pubsub#subscription_type' in options:
 				subscription.subscription_type = options['pubsub#subscription_type']
