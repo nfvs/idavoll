@@ -194,18 +194,16 @@ class CouchStorage:
 		affiliation = StringProperty()
 		
 		def save(self):
-			self['_id'] = self.key(entity=self.entity, node=self.node,
-								   affiliation=self.affiliation)
+			self['_id'] = self.get_key(node=self.node, entity=self.entity)
 			Document.save(self)
 		
 		def key(self):
-			return self.key(entity=self.entity, node=self.node,
-							affiliation=self.affiliation)
+			return self.get_key(node=self.node, entity=self.entity)
 
 		@staticmethod
-		def key(entity='', node='', affiliation=''):
-			return 'affiliation' + KEY_SEPARATOR + entity + KEY_SEPARATOR + \
-					node + KEY_SEPARATOR + affiliation
+		def get_key(entity='', node=''):
+			return 'affiliation' + KEY_SEPARATOR + node + KEY_SEPARATOR + \
+					entity
 	
 	class Subscription(Document):
 		doc_type = 'subscription'
@@ -761,15 +759,15 @@ class Node:
 		self._checkNodeExists()
 		
 		affiliations = CouchStorage.Affiliation.view(
-			'pubsub/affiliations_flat',
-			startkey=[entity.userhost(), self.nodeIdentifier],
-			endkey=[entity.userhost(), self.nodeIdentifier, {}]
+			'pubsub/affiliations_by_node_entity',
+			startkey=[self.nodeIdentifier, entity.userhost()],
+			endkey=[self.nodeIdentifier, entity.userhost(), {}]
 			)
 		
 		if affiliations.count() == 0:
 			return None
 		else:
-			affiliation = affiliations.first()['key'][2]
+			affiliation = affiliations.first()['value']
 			return affiliation
 
 	def getSubscription(self, subscriber):
@@ -957,6 +955,73 @@ class Node:
 		affiliations = affiliations.all()
 		#return [(jid.internJID(r['value'][0]), r['value'][1]) for r in affiliations]
 		return [(jid.internJID(r.entity), r.affiliation) for r in affiliations]
+		
+	def setAffiliations(self, affiliations):
+		return threads.deferToThread(self._setAffiliations, affiliations)
+			
+	def _setAffiliations(self, affiliations):
+		s = DictSerializer()
+		
+		# pending affiliations
+		data = s.dict_from_elem(affiliations)
+		
+		# get [node, jid] list
+		keys = [[self.nodeIdentifier, a['affiliation']['attribs']['jid']] for a in data]
+		
+		# fetch all affiliations for this node / pending aff. entities
+		existing_affiliations = CouchStorage.Affiliation.view(
+			'pubsub/affiliations_by_node_entity',
+			keys=keys,
+			include_docs=True
+			)
+		existing_affiliations = [a.to_json() for a in existing_affiliations]
+
+		# affiliations docs to be pushed to server
+		db_affiliations = []
+		
+		# iterate existing affiliations, update as needed
+		# affiliations will be removed from 'data' as they're updated;
+		# in the end, the remaining ones will be added as new documents
+		for aff in existing_affiliations:
+			# get new affiliation name from message
+			new_aff_name = ''
+			for pending_aff in data:
+				if pending_aff['affiliation']['attribs']['jid'] == aff['entity']:
+					new_aff_name = pending_aff['affiliation']['attribs']['affiliation']
+					
+					# delete from pending affiliations, the remaining will be added as new documents
+					del pending_aff
+					break
+					
+			# create new affiliation doc
+			new_aff = CouchStorage.Affiliation(
+				node=self.nodeIdentifier,
+				entity=aff['entity'],
+				affiliation=new_aff_name
+			)
+			new_aff = new_aff.to_json()
+			
+			# set id, rev
+			new_aff['_id'] = aff['_id']
+			new_aff['_rev'] = aff['_rev']
+			
+			db_affiliations.append(new_aff)
+		
+		# add remaining affiliations as new documents
+		for aff in data:
+			new_aff = CouchStorage.Affiliation(
+				node=self.nodeIdentifier,
+				entity=aff['affiliation']['attribs']['jid'],
+				affiliation=aff['affiliation']['attribs']['affiliation']
+			)
+			newkey = new_aff.key()
+			new_aff = new_aff.to_json()
+			new_aff['_id'] = newkey
+			db_affiliations.append(new_aff)
+		try:
+			ret = self.dbpool.bulk_save(db_affiliations)
+		except BulkSaveError as e:
+			print e		
 
 
 class LeafNode(Node):

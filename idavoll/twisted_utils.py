@@ -45,7 +45,11 @@ class DictSerializer:
 		return False
 	
 	def dict_from_elem(self, elem):
-		res = dict(self._serialize_to_dict(elem))
+		# TODO: no root
+		if isinstance(elem, list):
+			res = [self._serialize_to_dict(e) for e in elem]
+		else:
+			res = dict(self._serialize_to_dict(elem))
 		return res
 
 	"""

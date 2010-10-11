@@ -393,6 +393,13 @@ class BackendService(service.Service, utility.EventDispatcher):
 
 	def getAffiliations(self, entity):
 		return self.storage.getAffiliations(entity)
+		
+	def setNodeAffiliations(self, nodeIdentifier, affiliation):
+		if not nodeIdentifier:
+			return defer.fail(error.NoRootNode())
+
+		d = self.storage.getNode(nodeIdentifier)
+		d.addCallback(lambda node: node.setAffiliations(affiliation))
 
 		
 	def getItems(self, nodeIdentifier, requestor, maxItems=None,
@@ -750,6 +757,11 @@ class PubSubServiceFromBackend(PubSubService):
 				   options, subscriptionIdentifier=None, sender=None):
 		d = self.backend.setSubscriptionOptions(nodeIdentifier, subscriber,
 				options, subscriptionIdentifier, sender)
+		return d
+		
+		
+	def setAffiliations(self, requestor, service, nodeIdentifier, affiliations):
+		d = self.backend.setNodeAffiliations(nodeIdentifier, affiliations)
 		return d
 
 	def items(self, requestor, service, nodeIdentifier, maxItems,
