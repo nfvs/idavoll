@@ -806,7 +806,7 @@ class Node:
 		collection = config['pubsub#collection']
 
 		# belongs to a collection node,
-		# get subscriptions for node and parents
+		# get subscriptions for current node and all parent nodes
 		if collection is not '':
 
 			# first get nodeTree document
