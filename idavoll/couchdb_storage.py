@@ -869,6 +869,8 @@ class Node:
 
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''
+		
+		print 'add subscription options: %s' % config
 
 		subscription_type = config.get('pubsub#subscription_type') or 'nodes'
 		subscription_depth = config.get('pubsub#subscription_depth') or '1'
