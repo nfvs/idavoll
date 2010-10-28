@@ -837,6 +837,13 @@ class Node:
 
 
 		subscriptions = []
+		
+		# pending subscriptions:
+		# dictionary of 'subscriber': {'nodeIdentifier':, 'subscriptionState':, 'options':}
+		# this way, only one subscription will be returned in case of subscription of multiple collections
+		# (the notification collection node will be the deepest one)
+		pending_subscriptions = {}
+		
 		for subscription in db_subscriptions:
 			subscriber = jid.JID('%s/%s' % (subscription.entity, \
 					subscription.resource))
@@ -847,13 +854,29 @@ class Node:
 			if subscription.subscription_depth:
 				options['pubsub#subscription_depth'] = subscription.subscription_depth;
 
-			# notify only for leaf nodes, or subscription type of 'items'
-			if subscription.node_type == 'leaf' or \
-					subscription.subscription_type == 'items':
-				subscriptions.append(Subscription(self.nodeIdentifier,
-						subscriber, subscription.state, options))
+			# notify only for leaf nodes
+			if subscription.node_type == 'leaf':
+				v = {}
+				v['nodeIdentifier'] = self.nodeIdentifier
+				v['subscriptionState'] = subscription.state
+				v['options'] = options
+				pending_subscriptions[subscriber] = v
+			
+			# notifications for collection nodes (items);
+			# replace node for the notification's originating nodeId
+			# note: if the user is subscribed to multiple collection nodes, add only the last
+			elif subscription.subscription_type == 'items':
+				v = {}
+				v['nodeIdentifier'] = collection
+				v['subscriptionState'] = subscription.state
+				v['options'] = options
+				pending_subscriptions[subscriber] = v
+		
+		# return subscriptions
+		for subscriber, v in pending_subscriptions.iteritems():
+			subscriptions.append(Subscription(v['nodeIdentifier'],
+					subscriber, v['subscriptionState'], v['options']))
 
-		#print 'subscriptions: %s' % [s.toElement().toXml() for s in subscriptions]
 		return subscriptions
 	
 
@@ -867,11 +890,21 @@ class Node:
 
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''
+		node_type = self._config['pubsub#node_type']
 		
-		print 'add subscription options: %s' % config
-
-		subscription_type = config.get('pubsub#subscription_type') or 'nodes'
-		subscription_depth = config.get('pubsub#subscription_depth') or '1'
+		#print 'add subscription options: %s' % config
+		if config:
+			subscription_type = config.get('pubsub#subscription_type') or 'nodes'
+			subscription_depth = config.get('pubsub#subscription_depth') or '1'
+		# default subscription for collection nodes
+		elif node_type == 'collection':
+			subscription_type = 'nodes'
+			subscription_depth = '1'
+		# subscription options for leaf nodes (empty)
+		else:
+			subscription_type = ''
+			subscription_depth = ''
+		
 
 		try:
 			# jid must be unique
@@ -885,7 +918,7 @@ class Node:
 		try:
 			subscription = CouchStorage.Subscription(
 				node=self.nodeIdentifier,
-				node_type = self._config['pubsub#node_type'],
+				node_type = node_type,
 				entity=userhost,
 				resource=resource,
 				state=state,

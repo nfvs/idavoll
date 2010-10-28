@@ -169,7 +169,6 @@ class DictSerializer:
 		# child elements
 		self._serialize_to_xml(root, itemlist[root_elem]['value'])
 	
-		print 'LOL: %s' % root.toXml()
 		#return root.toXml()
 		return root
 		

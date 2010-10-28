@@ -33,7 +33,7 @@ pubsub = PubSub::ServiceHelper.new(client, service)
 nodename = ARGV[0]
 
 
-ret = pubsub.subscribe_to(nodename)
+ret = pubsub.unsubscribe_from(nodename)
 if ret:
 	puts ret
 end
