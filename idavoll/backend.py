@@ -393,7 +393,8 @@ class BackendService(service.Service, utility.EventDispatcher):
 
 	def getAffiliations(self, entity):
 		return self.storage.getAffiliations(entity)
-		
+	
+	# TODO: unit-test
 	def setNodeAffiliations(self, nodeIdentifier, affiliation):
 		if not nodeIdentifier:
 			return defer.fail(error.NoRootNode())

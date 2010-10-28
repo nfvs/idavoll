@@ -468,8 +468,8 @@ class Storage:
 					nodeIdentifier)
 
 			if node.node_type == 'leaf':
-				pass
-				#node.delete()
+				node.delete()
+				
 			elif node.node_type == 'collection':
 				# find child nodes of this node, and set their parent
 				# as '' (no parent)
@@ -955,7 +955,8 @@ class Node:
 		affiliations = affiliations.all()
 		#return [(jid.internJID(r['value'][0]), r['value'][1]) for r in affiliations]
 		return [(jid.internJID(r.entity), r.affiliation) for r in affiliations]
-		
+	
+	# TODO: unit-test
 	def setAffiliations(self, affiliations):
 		return threads.deferToThread(self._setAffiliations, affiliations)
 			

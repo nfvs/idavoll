@@ -1,4 +1,5 @@
 import types
+import collections
 from twisted.words.xish import domish
 
 def _splitPrefix(name):
@@ -168,6 +169,7 @@ class DictSerializer:
 		# child elements
 		self._serialize_to_xml(root, itemlist[root_elem]['value'])
 	
+		print 'LOL: %s' % root.toXml()
 		#return root.toXml()
 		return root
 		
@@ -175,10 +177,11 @@ class DictSerializer:
 		
 		#print 'ORIG: ' + str(itemlist)
 		
-		# if value is a string, add content
-		if isinstance(itemlist, types.StringTypes):
-			root.addContent(itemlist)
+		# if value is not a dictionary nor list(string, date, decimal...), add to list
+		if not isinstance(itemlist, (dict, list)):
+			root.addContent(str(itemlist))
 			return
+
 		
 		# iterate child elements
 		for item in itemlist:

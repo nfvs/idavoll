@@ -6,6 +6,8 @@ require "xmpp4r/pubsub/helper/servicehelper.rb"
 require "xmpp4r/pubsub/helper/nodebrowser.rb"
 require "xmpp4r/pubsub/helper/nodehelper.rb"
 
+require "config.rb"
+
 include Jabber
 Jabber::debug = true
 
@@ -17,10 +19,11 @@ if ARGV.size() == 0:
 end
 
 
-service = 'pubsub.ubuntu'
-jid = 'nfvs@ubuntu/script'
+service = IDAVOLL_SCRIPT_SERVICE
+jid = IDAVOLL_SCRIPT_JID
+password = IDAVOLL_SCRIPT_PASSWORD
 
-password = 'nfvs'
+
 client = Client.new(JID.new(jid))
 client.connect
 client.auth(password)

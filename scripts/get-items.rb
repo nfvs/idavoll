@@ -1,5 +1,6 @@
 require "rubygems"
 require "xmpp4r"
+require "pp"
 
 require "xmpp4r/pubsub"
 require "xmpp4r/pubsub/helper/servicehelper.rb"
@@ -13,8 +14,8 @@ Jabber::debug = true
 
 puts 'publish item'
 
-if ARGV.size() != 1:
-	puts 'usage: get-config <node_name>'
+if ARGV.size() != 2:
+	puts 'usage: get-items <node_name> <item count>'
 	exit
 end
 
@@ -31,13 +32,16 @@ client.auth(password)
 pubsub = PubSub::ServiceHelper.new(client, service)
 
 nodename = ARGV[0]
+count = ARGV[1]
 
 
-item = Jabber::PubSub::Item.new()
-
-ret = pubsub.publish_item_to(nodename, item)
+ret = pubsub.get_items_from(nodename, count=count)
 if ret:
-	puts ret
+  puts 'Items:'
+  ret.each do |k, v|
+    puts '  id: %s' % k
+    puts '  xml: %s' % v
+  end
 end
 
 
