@@ -760,9 +760,12 @@ class Node:
 		
 		affiliations = CouchStorage.Affiliation.view(
 			'pubsub/affiliations_by_node_entity',
-			startkey=[self.nodeIdentifier, entity.userhost()],
-			endkey=[self.nodeIdentifier, entity.userhost(), {}]
+			key=[self.nodeIdentifier, entity.userhost()]
+			#startkey=[self.nodeIdentifier, entity.userhost()],
+			#endkey=[self.nodeIdentifier, entity.userhost()]
 			)
+			
+		#affiliations = CouchStorage.Affiliation.get('[%s, %s]' % (self.nodeIdentifier, entity.userhost()))
 		
 		if affiliations.count() == 0:
 			return None
