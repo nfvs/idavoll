@@ -331,7 +331,7 @@ class Storage:
 				key=parentNodeIdentifier
 				)
 		if nodes.count() > 0:
-			result = nodes.all()[0]['value']
+			result = [n['value'] for n in nodes.all()]
 		else:
 			result = []
 		return result
@@ -490,13 +490,16 @@ class Storage:
 				nodes = CouchStorage.Node.view(
 						'pubsub/nodes_by_collection',
 						keys=children,
-						group=True,
 						)
 
 				orphanNodes = []
-				for n in nodes.iterator():
-					for v in n['value']:
-						orphanNodes.append(v)
+				nodesList = [n['value'] for n in nodes.all()]
+				for n in nodesList:
+					orphanNodes.append(n)
+				
+				#for n in nodes.iterator():
+				#	for v in n['value']:
+				#		orphanNodes.append(v)
 
 				# associateNodesWith root collection
 				self._associateNodesWithCollection(orphanNodes, '')
