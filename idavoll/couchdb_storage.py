@@ -1154,14 +1154,14 @@ class LeafNode(Node):
 			items = CouchStorage.Item.view(
 				'pubsub/items_by_node_date',
 				startkey=[self.nodeIdentifier],
-				endkey=[self.nodeIdentifier, {}, {}],
+				endkey=[self.nodeIdentifier, {}],
 				limit=maxItems
 				)
 		else:
 			items = CouchStorage.Item.view(
 				'pubsub/items_by_node_date',
 				startkey=[self.nodeIdentifier],
-				endkey=[self.nodeIdentifier, {}, {}],
+				endkey=[self.nodeIdentifier, {}],
 				)
 		
 		#elements = [parseXml(i.data.encode('utf-8')) for i in items]

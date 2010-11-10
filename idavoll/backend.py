@@ -421,7 +421,7 @@ class BackendService(service.Service, utility.EventDispatcher):
 			raise error.Forbidden()
 
 		if itemIdentifiers:
-			return node.getItemsById(itemIdentifiers)
+			return node.getItemsById(itemIdentifiers, maxItems)
 		else:
 			return node.getItems(maxItems)
 
@@ -767,7 +767,8 @@ class PubSubServiceFromBackend(PubSubService):
 
 	def items(self, requestor, service, nodeIdentifier, maxItems,
 					itemIdentifiers):
-		d = self.backend.getItems(nodeIdentifier, requestor, maxItems,
+		# FIXME: limiting items to 1
+		d = self.backend.getItems(nodeIdentifier, requestor, 1,
 								   itemIdentifiers)
 		return d.addErrback(self._mapErrors)
 
