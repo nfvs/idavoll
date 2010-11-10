@@ -139,6 +139,7 @@ class CouchStorage:
 		
 		def save(self):
 			# set defaults
+			self.date = datetime.datetime.utcnow()
 			if self.node_type is None:
 				self.node_type = 'leaf'
 
@@ -240,8 +241,9 @@ class CouchStorage:
 		date = DateTimeProperty()
 		
 		def save(self):
-			if self.date is None:
-				self.date = datetime.datetime.utcnow()
+			##if self.date is None:
+			# always update date
+			self.date = datetime.datetime.utcnow()
 			if self['_id'] is None:
 				self['_id'] = self.key(node=self.node, item_id=self.item_id)
 			return Document.save(self)
