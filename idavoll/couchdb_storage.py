@@ -1155,16 +1155,16 @@ class LeafNode(Node):
 		if maxItems:
 			items = CouchStorage.Item.view(
 				'pubsub/items_by_node_date',
-				startkey=[self.nodeIdentifier],
-				endkey=[self.nodeIdentifier, {}],
+				startkey=[self.nodeIdentifier, {}],
+				endkey=[self.nodeIdentifier],
 				descending=True,
 				limit=maxItems
 				)
 		else:
 			items = CouchStorage.Item.view(
 				'pubsub/items_by_node_date',
-				startkey=[self.nodeIdentifier],
-				endkey=[self.nodeIdentifier, {}],
+				startkey=[self.nodeIdentifier, {}],
+				endkey=[self.nodeIdentifier],
 				descending=True,
 				)
 		
