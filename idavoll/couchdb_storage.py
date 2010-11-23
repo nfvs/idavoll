@@ -425,7 +425,7 @@ class Storage:
 		except error.NodeNotFound:
 			raise error.NodeNotFound()
 		except Exception as e:
-			print 'Error: ' + str(e)
+			print 'Error: ' + unicode(e)
 			raise error.Error()
 
 		# save entity
@@ -1085,7 +1085,7 @@ class LeafNode(Node):
 
 	def _storeItem(self, item, publisher):
 		#xml = item.toXml()
-		#print 'ORIG: ' + str(item.toXml().encode('utf-8'))
+		#print 'ORIG: ' + unicode(item.toXml().encode('utf-8'))
 		s = DictSerializer()
 		data = s.dict_from_elem(item)
 		
@@ -1168,6 +1168,7 @@ class LeafNode(Node):
 				descending=True,
 				)
 		
+		print 'items: %s' % items
 		#elements = [parseXml(i.data.encode('utf-8')) for i in items]
 		s = DictSerializer()
 		elements = [s.serialize_to_xml(i.data) for i in items]

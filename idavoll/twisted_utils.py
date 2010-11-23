@@ -178,7 +178,7 @@ class DictSerializer:
 		
 		# if value is not a dictionary nor list(string, date, decimal...), add to list
 		if not isinstance(itemlist, (dict, list)):
-			root.addContent(str(itemlist))
+			root.addContent(unicode(itemlist))
 			return
 
 		
