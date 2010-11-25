@@ -1168,7 +1168,7 @@ class LeafNode(Node):
 				descending=True,
 				)
 		
-		print 'items: %s' % items
+		#print 'items: %s' % items
 		#elements = [parseXml(i.data.encode('utf-8')) for i in items]
 		s = DictSerializer()
 		elements = [s.serialize_to_xml(i.data) for i in items]
