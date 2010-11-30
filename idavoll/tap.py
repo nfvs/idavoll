@@ -75,7 +75,7 @@ def makeService(config):
 
 	elif config['backend'] == 'couchdb':
 		from idavoll.couchdb_storage import Storage
-		from restkit import SimplePool
+		#from restkit import SimplePool
 		from couchdbkit import Server
 
 		# default arguments
@@ -85,10 +85,8 @@ def makeService(config):
 			config['dbport'] = DEFAULT_OPTIONS['couchdb-port']
 
 		try:
-			pool = SimplePool(keepalive=5) # pool of 5 connections to couchdb
-			server = Server(
-				'http://%s:%s/' % (config['dbhost'], config['dbport']),
-				pool_instance=pool)
+			#pool = SimplePool(keepalive=5) # pool of 5 connections to couchdb
+			server = Server('http://%s:%s/' % (config['dbhost'], config['dbport']))
 			db = server.get_or_create_db('pubsub')
 		except restkit.errors.RequestFailed as e:
 			print 'Error connecting to couchdb: %s' % e

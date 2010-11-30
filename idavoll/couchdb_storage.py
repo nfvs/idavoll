@@ -6,7 +6,7 @@ import datetime
 
 from zope.interface import implements
 
-from restkit import SimplePool
+#from restkit import SimplePool
 import restkit, logging
 
 from couchdbkit import *
@@ -813,7 +813,7 @@ class Node:
 
 		# belongs to a collection node,
 		# get subscriptions for current node and all parent nodes
-		if collection is not '':
+		if collection and collection is not '':
 
 			# first get nodeTree document
 			collectionTree = CouchStorage.CollectionNodeTree.get(
