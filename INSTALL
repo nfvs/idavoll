@@ -62,7 +62,9 @@ For using the PostgreSQL backend, create a database (for example named pubsub)
 like so:
 
   createdb pubsub
-  psql pubsub <db/pubsub.sql
+  psql pubsub < .../postgresql/8.4/contrib/ltree.sql
+  psql pubsub < db/pubsub.sql
+
 
 To use this backend, add the --backend=pgsql parameter to twistd, along
 with the optional connection parameters (see twistd idavoll --help).

@@ -8,13 +8,32 @@ CREATE TABLE nodes (
     node text NOT NULL UNIQUE,
     node_type text NOT NULL DEFAULT 'leaf'
         CHECK (node_type IN ('leaf', 'collection')),
+	collection text DEFAULT NULL,
+	path ltree,
+/*
+	parent integer NOT NULL,
+	lft integer NOT NULL,
+	rgt integer NOT NULL,
+	*/
     persist_items boolean,
     deliver_payloads boolean NOT NULL DEFAULT TRUE,
     send_last_published_item text NOT NULL DEFAULT 'on_sub'
         CHECK (send_last_published_item IN ('never', 'on_sub'))
 );
 
-INSERT INTO nodes (node, node_type) values ('', 'collection');
+CREATE INDEX nodes_path_gist_idx ON nodes USING gist(path);
+CREATE INDEX nodes_path_idx ON nodes USING btree(path);
+
+
+INSERT INTO nodes (node_id, node, node_type, path) values (0, 'PubSubCollectionRoot', 'collection', 'PubSubCollectionRoot'); /* root collection */
+
+/*
+ALTER TABLE nodes ADD CONSTRAINT pk_nodes_id PRIMARY KEY (node_id);
+CREATE INDEX ix_nodes_lft ON nodes (lft);
+CREATE INDEX ix_nodes_rgt ON nodes (rgt);
+CREATE INDEX ix_nodes_parent ON nodes (parent);
+*/
+
 
 CREATE TABLE affiliations (
     affiliation_id serial PRIMARY KEY,

@@ -409,7 +409,7 @@ class BackendTest(unittest.TestCase):
 		d1 = defer.Deferred()
 		d1.addCallback(cb)
 		self.backend.registerNotifier(d1.callback)
-		d2 = self.backend.subscribe('node', OWNER, OWNER)
+		d2 = self.backend.subscribe('node', OWNER, OWNER, None)
 		return defer.gatherResults([d1, d2])
 
 	test_notifyOnSubscription.timeout = 2

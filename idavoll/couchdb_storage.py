@@ -751,6 +751,7 @@ class Node:
 
 
 	def getMetaData(self):
+		print 'SETCONFIGURATION'
 		config = copy.copy(self._config)
 		config["pubsub#node_type"] = self.nodeType
 		return config
@@ -895,6 +896,8 @@ class Node:
 
 	def _addSubscription(self, subscriber, state, config):
 		self._checkNodeExists()
+		
+		print 'SELF CONF: %s' % self.getConfiguration()
 
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''

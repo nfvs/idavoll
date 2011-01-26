@@ -330,11 +330,11 @@ class BackendService(service.Service, utility.EventDispatcher):
 			for optionName, optionValue in options.iteritems():
 				if optionName in self.nodeOptions:
 					config[optionName] = optionValue
-					
+		
 		# default node configuration
 		else:
 			#nodeType = 'leaf'
-			config = self.storage.getDefaultConfiguration(nodeType)
+			config = self.storage.getDefaultConfiguration(nodeType)			
 		
 		config['pubsub#node_type'] = nodeType
 

@@ -42,7 +42,8 @@ class Storage:
 		cursor.execute("""SELECT node_type,
 								 persist_items,
 								 deliver_payloads,
-								 send_last_published_item
+								 send_last_published_item,
+								 collection
 						  FROM nodes
 						  WHERE node=%s""",
 					   (nodeIdentifier,))
@@ -50,20 +51,23 @@ class Storage:
 
 		if not row:
 			raise error.NodeNotFound()
-
+			
 		if row[0] == 'leaf':
 			configuration = {
+					'pubsub#node_type': 'leaf',
 					'pubsub#persist_items': row[1],
 					'pubsub#deliver_payloads': row[2],
-					'pubsub#send_last_published_item': row[3]}
+					'pubsub#send_last_published_item': row[3],
+					'pubsub#collection': row[4]}
 			node = LeafNode(nodeIdentifier, configuration)
 			node.dbpool = self.dbpool
 			return node
 		elif row[0] == 'collection':
 			configuration = {
+					'pubsub#node_type': 'collection',
 					'pubsub#deliver_payloads': row[2],
-					'pubsub#send_last_published_item':
-						row[3]}
+					'pubsub#send_last_published_item': row[3],
+					'pubsub#collection': row[4]}
 			node = CollectionNode(nodeIdentifier, configuration)
 			node.dbpool = self.dbpool
 			return node
@@ -76,30 +80,78 @@ class Storage:
 		return d
 
 
-	def createNode(self, nodeIdentifier, owner, config):
+	def createNode(self, nodeIdentifier, owner, config=None):
 		return self.dbpool.runInteraction(self._createNode, nodeIdentifier,
 										   owner, config)
 
 
 	def _createNode(self, cursor, nodeIdentifier, owner, config):
-		if config['pubsub#node_type'] != 'leaf':
-			raise error.NoCollections()
+		#if config['pubsub#node_type'] != 'leaf':
+		#	raise error.NoCollections()
 
 		owner = owner.userhost()
+		
+		if 'pubsub#node_type' in config:
+			nodeType = config['pubsub#node_type']
+		else:
+			nodeType = 'leaf'
+		
 		try:
-			cursor.execute("""INSERT INTO nodes
-							  (node, node_type, persist_items,
-							   deliver_payloads, send_last_published_item)
-							  VALUES
-							  (%s, 'leaf', %s, %s, %s)""",
-						   (nodeIdentifier,
-							config['pubsub#persist_items'],
-							config['pubsub#deliver_payloads'],
-							config['pubsub#send_last_published_item'])
-						   )
+			collection = ''
+			if 'pubsub#collection' in config:
+				collection = config['pubsub#collection']
+				
+			# get path to collection (parent)
+			if collection == '':
+				cursor.execute("""SELECT node from nodes where node_id=0""") # root node name
+			else:
+				cursor.execute("""SELECT path from nodes where node=%s""", (collection,))
+			
+			row = cursor.fetchone()
+			if row is None:
+				print 'Collection node not found'
+				raise error.NodeNotFound()
+
+			if not row[0]:
+				path = nodeIdentifier
+			else:
+				path = row[0]
+				path += ".%s" % nodeIdentifier
+			
+			if nodeType == 'leaf':
+				cursor.execute("""INSERT INTO nodes
+								  (node, node_type, persist_items,
+								   deliver_payloads, send_last_published_item, path, collection)
+								  VALUES
+								  (%s, 'leaf', %s, %s, %s, %s, %s)""",
+							   (nodeIdentifier,
+								config['pubsub#persist_items'],
+								config['pubsub#deliver_payloads'],
+								config['pubsub#send_last_published_item'],
+								path,
+								collection)
+							   )
+			# collection node
+			elif nodeType == 'collection':
+
+				cursor.execute("""INSERT INTO nodes
+								  (node, node_type, path, collection)
+								  VALUES
+								  (%s, 'collection', %s, %s)""",
+							   (nodeIdentifier, path, collection)
+							   )
+				
+			else:
+				raise error.Error(msg='Unknown node type')
+				
 		#except cursor._pool.dbapi.OperationalError:
+		except error.NodeNotFound:
+			raise error.NodeNotFound()
 		except cursor._pool.dbapi.IntegrityError:
 			raise error.NodeExists()
+		except Exception as e:
+			print 'Error: ' + unicode(e)
+			raise error.Error()
 
 		cursor.execute("""SELECT 1 from entities where jid=%s""",
 					   (owner,))
@@ -117,7 +169,6 @@ class Storage:
 											WHERE jid=%s) as e""",
 					   (nodeIdentifier, owner))
 
-
 	def deleteNode(self, nodeIdentifier):
 		return self.dbpool.runInteraction(self._deleteNode, nodeIdentifier)
 
@@ -128,6 +179,37 @@ class Storage:
 
 		if cursor.rowcount != 1:
 			raise error.NodeNotFound()
+	
+	
+	def setSubscriptionOptions(self, nodeIdentifier, subscriber, options,
+							   subscriptionIdentifier=None, sender=None):
+		return self.dbpool.runInteraction(self._setSubscriptionOptions,
+				nodeIdentifier, subscriber, options, subscriptionIdentifier,
+				sender)
+
+	# TODO: JID resource??
+	def _setSubscriptionOptions(self, cursor, nodeIdentifier, subscriber, options,
+								subscriptionIdentifier=None, sender=None):
+		userhost = subscriber.userhost()
+		resource = subscriber.resource or ''
+
+		try:
+			sqlStr = "UPDATE subscriptions SET "
+
+			if 'pubsub#subscription_type' in options:
+				sqlStr += " subscription_type = %s," % options['pubsub#subscription_type']
+			if 'pubsub#subscription_depth' in options:
+				sqlStr += " subscription_type = %s," % options['pubsub#subscription_type']
+			
+			# remove ','
+			if sqlStr[-1:] == ",":
+				sqlStr = sqlStr[:-1]
+
+			cursor.execute(sqlStr)
+		except Exception as e:
+			#raise error.
+			pass
+
 
 
 	def getAffiliations(self, entity):
@@ -161,7 +243,7 @@ class Storage:
 
 
 	def getDefaultConfiguration(self, nodeType):
-		return self.defaultConfig[nodeType]
+		return self.defaultConfig[nodeType].copy()
 
 
 
@@ -311,12 +393,28 @@ class Node:
 
 	def _addSubscription(self, cursor, subscriber, state, config):
 		self._checkNodeExists(cursor)
+		
+		print 'SELF CONF: %s' % self.getConfiguration()
 
+		#subscription_type = config.get('pubsub#subscription_type')
+		#subscription_depth = config.get('pubsub#subscription_depth')
+		
 		userhost = subscriber.userhost()
 		resource = subscriber.resource or ''
+		node_type = self._config['pubsub#node_type']
 
-		subscription_type = config.get('pubsub#subscription_type')
-		subscription_depth = config.get('pubsub#subscription_depth')
+		#print 'add subscription options: %s' % config
+		if config:
+			subscription_type = config.get('pubsub#subscription_type') or 'nodes'
+			subscription_depth = config.get('pubsub#subscription_depth') or '1'
+		# default subscription for collection nodes
+		elif node_type == 'collection':
+			subscription_type = 'nodes'
+			subscription_depth = '1'
+		# subscription options for leaf nodes (empty)
+		else:
+			subscription_type = ''
+			subscription_depth = ''
 
 		try:
 			cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",

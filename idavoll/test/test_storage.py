@@ -487,7 +487,7 @@ class PgsqlStorageStorageTestCase(unittest.TestCase, StorageTests):
 
 	def tearDown(self):
 		d = self.dbpool.runInteraction(self.cleandb)
-		return d.addCallback(self.dbpool.close)
+		return d.addCallback(lambda _: self.dbpool.close())
 
 
 	def init(self, cursor):

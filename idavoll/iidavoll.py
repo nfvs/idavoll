@@ -98,7 +98,7 @@ class IBackendService(Interface):
         """ Removes all items in node from persistent storage """
 
 
-    def subscribe(nodeIdentifier, subscriber, requestor):
+    def subscribe(nodeIdentifier, subscriber, requestor, options):
         """ Request the subscription of an entity to a pubsub node.
 
         Depending on the node's configuration and possible business rules, the
@@ -106,6 +106,7 @@ class IBackendService(Interface):
         C{nodeIdentifier}. The C{subscriber} might be different from the
         C{requestor}, and if the C{requestor} is not allowed to subscribe this
         entity an exception should be raised.
+        C{options}: subscription options
 
         @return: a deferred that returns the subscription state
         """
@@ -325,6 +326,8 @@ class IStorage(Interface):
         @raises: L{idavoll.error.NoCollections} if collections are not
                  supported.
         """
+
+
 
 
 
