@@ -13,6 +13,21 @@ from wokkel.pubsub import Subscription
 
 from idavoll import error, iidavoll
 
+from string import Template
+
+
+"""
+Get Direct Child Nodes
+parameters:
+	$fields: fields to return (nodes.node, nodes.node_id, ...)
+	$node: parent (collection) node name
+"""
+sql_get_direct_child_nodes = Template(
+"""SELECT $fields from nodes
+	INNER JOIN nodes AS n ON (nodes.collection = n.node_id)
+	WHERE n.node='$node'
+	ORDER BY nodes.node""")
+
 class Storage:
 
 	implements(iidavoll.IStorage)
@@ -79,6 +94,21 @@ class Storage:
 		d.addCallback(lambda results: [r[0] for r in results])
 		return d
 
+	def getChildNodeIds(self, parentNodeIdentifier=''):
+		return self.dbpool.runInteraction(self._getChildNodeIds, parentNodeIdentifier)
+
+	def _getChildNodeIds(self, cursor, parentNodeIdentifier):
+		sql = sql_get_direct_child_nodes.substitute(fields='nodes.node',
+			node=parentNodeIdentifier)
+		cursor.execute(sql)
+		rows = cursor.fetchall()
+		
+		if len(rows) > 0:
+			#result = [n['value'] for n in nodes.all()]
+			result = [r[0] for r in rows]
+		else:
+			result = []
+		return result
 
 	def createNode(self, nodeIdentifier, owner, config=None):
 		return self.dbpool.runInteraction(self._createNode, nodeIdentifier,
@@ -101,44 +131,38 @@ class Storage:
 			if 'pubsub#collection' in config:
 				collection = config['pubsub#collection']
 				
-			# get path to collection (parent)
-			if collection == '':
-				cursor.execute("""SELECT node from nodes where node_id=0""") # root node name
+			# get collection (parent node_id)
+			if collection != '':
+				cursor.execute("""SELECT node_id from nodes where node=%s""", (collection,))
+				row = cursor.fetchone()
+				if row is None:
+					print 'Collection node not found'
+					raise error.NodeNotFound()
+				else:
+					collection_id = row[0]
 			else:
-				cursor.execute("""SELECT path from nodes where node=%s""", (collection,))
-			
-			row = cursor.fetchone()
-			if row is None:
-				print 'Collection node not found'
-				raise error.NodeNotFound()
-
-			if not row[0]:
-				path = nodeIdentifier
-			else:
-				path = row[0]
-				path += ".%s" % nodeIdentifier
+				collection_id = 0
 			
 			if nodeType == 'leaf':
 				cursor.execute("""INSERT INTO nodes
 								  (node, node_type, persist_items,
-								   deliver_payloads, send_last_published_item, path, collection)
+								   deliver_payloads, send_last_published_item, collection)
 								  VALUES
-								  (%s, 'leaf', %s, %s, %s, %s, %s)""",
+								  (%s, 'leaf', %s, %s, %s, %s)""",
 							   (nodeIdentifier,
 								config['pubsub#persist_items'],
 								config['pubsub#deliver_payloads'],
 								config['pubsub#send_last_published_item'],
-								path,
-								collection)
+								collection_id)
 							   )
 			# collection node
 			elif nodeType == 'collection':
 
 				cursor.execute("""INSERT INTO nodes
-								  (node, node_type, path, collection)
+								  (node, node_type, collection)
 								  VALUES
-								  (%s, 'collection', %s, %s)""",
-							   (nodeIdentifier, path, collection)
+								  (%s, 'collection', %s)""",
+							   (nodeIdentifier, collection_id)
 							   )
 				
 			else:

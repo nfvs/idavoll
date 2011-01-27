@@ -280,6 +280,13 @@ class IStorage(Interface):
         @return: deferred that fires on deletion.
         """
 
+	def setSubscriptionOptions(self, nodeIdentifier, subscriber, options,
+							   subscriptionIdentifier=None, sender=None):
+		"""
+		Sets the options for a subscription
+		
+		
+		"""
 
     def getAffiliations(entity):
         """
