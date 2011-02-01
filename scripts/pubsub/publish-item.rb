@@ -6,7 +6,7 @@ require "xmpp4r/pubsub/helper/servicehelper.rb"
 require "xmpp4r/pubsub/helper/nodebrowser.rb"
 require "xmpp4r/pubsub/helper/nodehelper.rb"
 
-require "config.rb"
+require "../config.rb"
 
 include Jabber
 Jabber::debug = true
@@ -14,7 +14,7 @@ Jabber::debug = true
 puts 'publish item'
 
 if ARGV.size() != 1:
-	puts 'usage: get-config <node_name>'
+	puts 'usage: publish-item <node_name>'
 	exit
 end
 

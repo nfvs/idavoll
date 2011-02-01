@@ -767,10 +767,9 @@ class PubSubServiceFromBackend(PubSubService):
 		d = self.backend.getNodeConfiguration(nodeIdentifier)
 		return d.addErrback(self._mapErrors)
 
-
 	def setConfiguration(self, requestor, service, nodeIdentifier, options):
 		d = self.backend.setNodeConfiguration(nodeIdentifier, options,
-												requestor)
+											  requestor)
 		return d.addErrback(self._mapErrors)
 
 	def setOptions(self, service, nodeIdentifier, subscriber,
