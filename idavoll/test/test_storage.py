@@ -231,7 +231,23 @@ class StorageTests:
 		d = self.node.getAffiliation(SUBSCRIBER)
 		d.addCallback(cb)
 		return d
+	
+	def test_setAffiliation(self):
+		def cb1(void):
+			return self.node.getAffiliation(OWNER)
+			
+		def cb2(affiliation):
+			self.assertEqual(affiliation, 'publisher')
+		
+		d = self.node.setAffiliation(OWNER, 'publisher')
+		d.addCallback(cb1)
+		d.addCallback(cb2)
+		return d
 
+	def test_setInvalidAffiliation(self):
+		d = self.node.setAffiliation(OWNER, 'invalid')
+		self.assertFailure(d, error.NoAffiliation)
+		return d
 
 	def test_addSubscription(self):
 		def cb1(void):
