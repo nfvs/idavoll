@@ -14,7 +14,7 @@ from wokkel.pubsub import Subscription
 from idavoll import error, iidavoll
 
 from string import Template
-
+import psycopg2
 
 """
 Get Direct Child Nodes
@@ -348,61 +348,42 @@ class Node:
 			return cursor.fetchone()[0]
 		except TypeError:
 			return None
-	
+			
 	# TODO: test me!!!
-	def setAffiliations(self, affiliations):
-		return self.dbpool.runInteraction(self._setAffiliations, affiliations)
-
-	def _setAffiliations(self, cursor, affiliations):
+	def setAffiliation(self, entity, affiliation):
+		return self.dbpool.runInteraction(self._setAffiliation, entity, affiliation)
+	
+	def _setAffiliation(self, cursor, entity, affiliation):
+		jid = entity.userhost()
 		
-		# jids list to sql (jid1, jid2, jid3)
-		def jidsToSql(jids):
-			jidsStr = ''.join(["'" + j + "'," for j in jids]) # jid str; e.g. 'jid1', 'jid2'
-			if jidsStr[-1:] == ',': jidsStr = jidsStr[:-1]
-			return jidsStr
-			
-		# affiliations = [ { 'jid': .., 'affiliation': .. }, ..]
+		if affiliation not in ['owner', 'publisher', 'outcast']:
+			raise error.NoAffiliation()
 		
-		affs = affiliations
-		if not affs:
-			return
-			
-		jidsStr = ''
-		
-		# use only bare JID, not full JID
-		jids = [a['jid'].userhost() for a in affiliations] # jid list
-		
-		# insert new entities
-		cursor.execute("""SELECT jid FROM entities WHERE jid IN (%s)""" % jidsToSql(jids) )
-		existingJids = [existing[0] for existing in cursor.fetchall()]
-		
-		#print 'existing: %s' % existingJids
-		# insert new entities (dont insert existing ones)
-		insertJids = [j for j in jids if j not in existingJids]
-		if insertJids:
-			print 'insert: %s' % insertJids
-			cursor.executemany("""INSERT INTO entities (jid) VALUES (%s)""", [[j] for j in jids] )
-		
-		# delete existing affiliations first
-		cursor.execute("""DELETE FROM affiliations
-			WHERE node_id=(SELECT node_id FROM nodes WHERE node='%s') AND
-			entity_id IN (SELECT entity_id FROM entities WHERE jid IN (%s))""" % (self.nodeIdentifier, jidsToSql(jids)) )
-		
-		# insert new affiliations
-		insertSql = """"""
-			
-		for aff in affs:
-			insertSql += """INSERT INTO affiliations (node_id, entity_id, affiliation)
-				SELECT node_id, entity_id, '%s' FROM 
-				(SELECT node_id FROM nodes WHERE node='%s') as n
-				CROSS JOIN (SELECT entity_id FROM entities WHERE jid='%s') as e; """ % (aff['affiliation'], self.nodeIdentifier, aff['jid'].userhost())
-		
-		#print 'INSERT SQL: %s' % insertSql
-		cursor.execute(insertSql)
-		return
-		
+		# check owner
 		
 
+		cursor.execute("""SELECT jid FROM entities WHERE jid=%s""", (jid,))
+		rows = cursor.fetchall()
+		if not rows:
+			cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""", (jid,))
+		
+		cursor.execute("""SELECT 1 FROM affiliations
+						  NATURAL JOIN nodes as n
+						  NATURAL JOIN entities as e
+						  WHERE n.node=%s AND e.jid=%s""", (self.nodeIdentifier, jid))
+		row = cursor.fetchone()
+		
+		# insert
+		if not row:
+			cursor.execute("""INSERT INTO affiliations (node_id, entity_id, affiliation)
+				SELECT node_id, entity_id, %s FROM 
+				(SELECT node_id FROM nodes WHERE node=%s) as n
+				CROSS JOIN (SELECT entity_id FROM entities WHERE jid=%s) as e""", (affiliation, self.nodeIdentifier, jid))
+		# update affiliation
+		else:
+			cursor.execute("""UPDATE affiliations SET affiliation=%s WHERE
+				entity_id=(SELECT entity_id FROM entities WHERE jid=%s) AND
+				node_id=(SELECT node_id FROM nodes WHERE node=%s)""", (affiliation, jid, self.nodeIdentifier))
 
 	def getSubscription(self, subscriber):
 		return self.dbpool.runInteraction(self._getSubscription, subscriber)

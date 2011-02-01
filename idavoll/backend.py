@@ -395,7 +395,7 @@ class BackendService(service.Service, utility.EventDispatcher):
 		return self.storage.getAffiliations(entity)
 	
 	# TODO: unit-test
-	def setNodeAffiliations(self, nodeIdentifier, affiliations):
+	def setNodeAffiliations(self, nodeIdentifier, requestor, affiliations):
 		
 		if not nodeIdentifier:
 			return defer.fail(error.NoRootNode())
@@ -405,7 +405,15 @@ class BackendService(service.Service, utility.EventDispatcher):
 		#	print 'jid: %s' % aff['jid']
 
 		d = self.storage.getNode(nodeIdentifier)
-		d.addCallback(lambda node: node.setAffiliations(affiliations))
+		
+		# check permissions
+		for aff in affiliations:
+			d.addCallback(self._checkAuth, requestor)
+		
+		# edit affiliations
+		for aff in affiliations:
+			d.addCallback(lambda node: node.setAffiliation(aff['jid'], aff['affiliation']))
+			
 		return d
 
 		
@@ -569,6 +577,9 @@ class PubSubServiceFromBackend(PubSubService):
 		error.NoPublishing: ('feature-not-implemented',
 							 'unsupported',
 							 'publish'),
+		error.NoAffiliation: ('feature-not-implemented',
+							  'unsupported',
+							  'member-affiliation'),
 	}
 
 	def __init__(self, backend):
@@ -770,7 +781,7 @@ class PubSubServiceFromBackend(PubSubService):
 		
 		
 	def setAffiliations(self, requestor, service, nodeIdentifier, affiliations):
-		d = self.backend.setNodeAffiliations(nodeIdentifier, affiliations)
+		d = self.backend.setNodeAffiliations(nodeIdentifier, requestor, affiliations)
 		return d.addErrback(self._mapErrors)
 
 	def items(self, requestor, service, nodeIdentifier, maxItems,
