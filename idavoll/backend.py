@@ -395,12 +395,18 @@ class BackendService(service.Service, utility.EventDispatcher):
 		return self.storage.getAffiliations(entity)
 	
 	# TODO: unit-test
-	def setNodeAffiliations(self, nodeIdentifier, affiliation):
+	def setNodeAffiliations(self, nodeIdentifier, affiliations):
+		
 		if not nodeIdentifier:
 			return defer.fail(error.NoRootNode())
+			
+		#for aff in affiliations:
+		#	print 'aff: %s' % aff['affiliation']
+		#	print 'jid: %s' % aff['jid']
 
 		d = self.storage.getNode(nodeIdentifier)
-		d.addCallback(lambda node: node.setAffiliations(affiliation))
+		d.addCallback(lambda node: node.setAffiliations(affiliations))
+		return d
 
 		
 	def getItems(self, nodeIdentifier, requestor, maxItems=None,
@@ -736,7 +742,9 @@ class PubSubServiceFromBackend(PubSubService):
 
 
 	def getConfigurationOptions(self):
-		return self.backend.nodeOptions
+		d = self.backend.nodeOptions
+		#return d.addErrback(self._mapErrors)
+		return d
 
 
 	def getDefaultConfiguration(self, requestor, service, nodeType):
@@ -758,12 +766,12 @@ class PubSubServiceFromBackend(PubSubService):
 				   options, subscriptionIdentifier=None, sender=None):
 		d = self.backend.setSubscriptionOptions(nodeIdentifier, subscriber,
 				options, subscriptionIdentifier, sender)
-		return d
+		return d.addErrback(self._mapErrors)
 		
 		
 	def setAffiliations(self, requestor, service, nodeIdentifier, affiliations):
 		d = self.backend.setNodeAffiliations(nodeIdentifier, affiliations)
-		return d
+		return d.addErrback(self._mapErrors)
 
 	def items(self, requestor, service, nodeIdentifier, maxItems,
 					itemIdentifiers):

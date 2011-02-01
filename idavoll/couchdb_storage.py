@@ -1005,13 +1005,12 @@ class Node:
 		return threads.deferToThread(self._setAffiliations, affiliations)
 			
 	def _setAffiliations(self, affiliations):
-		s = DictSerializer()
-		
+		#s = DictSerializer()
 		# pending affiliations
-		data = s.dict_from_elem(affiliations)
+		#data = s.dict_from_elem(affiliations)
 		
 		# get [node, jid] list
-		keys = [[self.nodeIdentifier, a['affiliation']['attribs']['jid']] for a in data]
+		keys = [[self.nodeIdentifier, a['jid']] for a in affiliations]
 		
 		# fetch all affiliations for this node / pending aff. entities
 		existing_affiliations = CouchStorage.Affiliation.view(
@@ -1030,9 +1029,9 @@ class Node:
 		for aff in existing_affiliations:
 			# get new affiliation name from message
 			new_aff_name = ''
-			for pending_aff in data:
-				if pending_aff['affiliation']['attribs']['jid'] == aff['entity']:
-					new_aff_name = pending_aff['affiliation']['attribs']['affiliation']
+			for pending_aff in affiliations:
+				if pending_aff['jid'] == aff['entity']:
+					new_aff_name = pending_aff['affiliation']
 					
 					# delete from pending affiliations, the remaining will be added as new documents
 					del pending_aff
@@ -1056,8 +1055,8 @@ class Node:
 		for aff in data:
 			new_aff = CouchStorage.Affiliation(
 				node=self.nodeIdentifier,
-				entity=aff['affiliation']['attribs']['jid'],
-				affiliation=aff['affiliation']['attribs']['affiliation']
+				entity=aff['jid'],
+				affiliation=aff['affiliation']
 			)
 			newkey = new_aff.key()
 			new_aff = new_aff.to_json()
@@ -1202,6 +1201,7 @@ class LeafNode(Node):
 		return threads.deferToThread(self._purge)
 
 
+	# child nodes become orphans
 	def _purge(self):
 		self._checkNodeExists()
 
