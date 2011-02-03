@@ -1,6 +1,6 @@
 /*CREATE LANGUAGE plpgsql;*/
 
-CREATE USER pubsub WITH PASSWORD pubsub;
+CREATE USER pubsub WITH PASSWORD 'pubsub';
 
 CREATE TABLE entities (
     entity_id serial PRIMARY KEY,
@@ -73,9 +73,13 @@ CREATE TABLE items (
     UNIQUE (node_id, item)
 );
 
-GRANT ALL PRIVILEGES ON entities TO pubsub;
-GRANT ALL PRIVILEGES ON nodes TO pubsub;
 GRANT ALL PRIVILEGES ON affiliations TO pubsub;
-GRANT ALL PRIVILEGES ON subscriptions TO pubsub;
+GRANT ALL PRIVILEGES ON affiliations_affiliation_id_seq TO pubsub;
+GRANT ALL PRIVILEGES ON entities TO pubsub;
+GRANT ALL PRIVILEGES ON entities_entity_id_seq TO pubsub;
 GRANT ALL PRIVILEGES ON items TO pubsub;
-
+GRANT ALL PRIVILEGES ON items_item_id_seq TO pubsub;
+GRANT ALL PRIVILEGES ON nodes TO pubsub;
+GRANT ALL PRIVILEGES ON nodes_node_id_seq TO pubsub;
+GRANT ALL PRIVILEGES ON subscriptions TO pubsub;
+GRANT ALL PRIVILEGES ON subscriptions_subscription_id_seq TO pubsub;

@@ -157,6 +157,7 @@ class Storage:
 			result = [r[0] for r in rows]
 		else:
 			result = []
+
 		return result
 
 	def createNode(self, nodeIdentifier, owner, config=None):
@@ -403,7 +404,8 @@ class Node:
 		return self.dbpool.runInteraction(self._setAffiliation, entity, affiliation)
 	
 	def _setAffiliation(self, cursor, entity, affiliation):
-		jid = entity.userhost()
+		#jid = entity.userhost()
+		jid = entity
 		
 		if affiliation not in ['owner', 'publisher', 'outcast']:
 			raise error.NoAffiliation()
@@ -411,15 +413,18 @@ class Node:
 		# check owner
 		
 
-		cursor.execute("""SELECT jid FROM entities WHERE jid=%s""", (jid,))
+		cursor.execute("""SELECT jid FROM entities WHERE jid=%s""",
+					   (jid,))
 		rows = cursor.fetchall()
 		if not rows:
-			cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""", (jid,))
+			cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
+						   (jid,))
 		
 		cursor.execute("""SELECT 1 FROM affiliations
 						  NATURAL JOIN nodes as n
 						  NATURAL JOIN entities as e
-						  WHERE n.node=%s AND e.jid=%s""", (self.nodeIdentifier, jid))
+						  WHERE n.node=%s AND e.jid=%s""",
+					   (self.nodeIdentifier, jid))
 		row = cursor.fetchone()
 		
 		# insert
@@ -536,8 +541,6 @@ class Node:
 	def _addSubscription(self, cursor, subscriber, state, config):
 		self._checkNodeExists(cursor)
 		
-		print 'SELF CONF: %s' % self.getConfiguration()
-
 		#subscription_type = config.get('pubsub#subscription_type')
 		#subscription_depth = config.get('pubsub#subscription_depth')
 		
@@ -643,8 +646,7 @@ class Node:
 						  WHERE node=%s""",
 					   (self.nodeIdentifier,))
 		result = cursor.fetchall()
-
-		return [(jid.internJID(r[0]), r[1]) for r in result]
+		return [(r[0], r[1]) for r in result]
 
 
 

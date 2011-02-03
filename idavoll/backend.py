@@ -395,8 +395,29 @@ class BackendService(service.Service, utility.EventDispatcher):
 		return self.storage.getAffiliations(entity)
 	
 	# TODO: unit-test
+	def getNodeAffiliations(self, nodeIdentifier, requestor):
+		def getAffiliations(node, requestor):
+			self._checkAuth(node, requestor)
+			return node.getAffiliations()
+		
+		if not nodeIdentifier:
+			return defer.fail(error.NoRootNode())
+
+		d = self.storage.getNode(nodeIdentifier)
+		d.addCallback(getAffiliations, requestor)
+		return d
+
+	# TODO: unit-test
 	def setNodeAffiliations(self, nodeIdentifier, requestor, affiliations):
 		
+		def setAffiliations(node, requestor, affiliations):
+			# check permissions
+			self._checkAuth(node, requestor)
+
+			# edit affiliations
+			for aff in affiliations:
+				node.setAffiliation(aff['jid'], aff['affiliation'])
+
 		if not nodeIdentifier:
 			return defer.fail(error.NoRootNode())
 			
@@ -405,15 +426,7 @@ class BackendService(service.Service, utility.EventDispatcher):
 		#	print 'jid: %s' % aff['jid']
 
 		d = self.storage.getNode(nodeIdentifier)
-		
-		# check permissions
-		for aff in affiliations:
-			d.addCallback(self._checkAuth, requestor)
-		
-		# edit affiliations
-		for aff in affiliations:
-			d.addCallback(lambda node: node.setAffiliation(aff['jid'], aff['affiliation']))
-			
+		d.addCallback(setAffiliations, requestor, affiliations)	
 		return d
 
 		
@@ -779,8 +792,14 @@ class PubSubServiceFromBackend(PubSubService):
 		return d.addErrback(self._mapErrors)
 		
 		
-	def setAffiliations(self, requestor, service, nodeIdentifier, affiliations):
-		d = self.backend.setNodeAffiliations(nodeIdentifier, requestor, affiliations)
+	def setAffiliations(self, requestor, service, nodeIdentifier,
+						affiliations):
+		d = self.backend.setNodeAffiliations(nodeIdentifier, requestor,
+											 affiliations)
+		return d.addErrback(self._mapErrors)
+
+	def getAffiliations(self, requestor, service, nodeIdentifier):
+		d = self.backend.getNodeAffiliations(nodeIdentifier, requestor)
 		return d.addErrback(self._mapErrors)
 
 	def items(self, requestor, service, nodeIdentifier, maxItems,
