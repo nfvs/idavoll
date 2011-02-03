@@ -401,6 +401,10 @@ class INode(Interface):
                  or C{None}.
         """
 
+	def setAffiliations():
+		"""
+		"""
+
 
     def getSubscription(subscriber):
         """

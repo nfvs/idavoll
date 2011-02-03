@@ -395,12 +395,26 @@ class BackendService(service.Service, utility.EventDispatcher):
 		return self.storage.getAffiliations(entity)
 	
 	# TODO: unit-test
-	def setNodeAffiliations(self, nodeIdentifier, affiliation):
+	def setNodeAffiliations(self, nodeIdentifier, requestor, affiliations):
+		
 		if not nodeIdentifier:
 			return defer.fail(error.NoRootNode())
+			
+		#for aff in affiliations:
+		#	print 'aff: %s' % aff['affiliation']
+		#	print 'jid: %s' % aff['jid']
 
 		d = self.storage.getNode(nodeIdentifier)
-		d.addCallback(lambda node: node.setAffiliations(affiliation))
+		
+		# check permissions
+		for aff in affiliations:
+			d.addCallback(self._checkAuth, requestor)
+		
+		# edit affiliations
+		for aff in affiliations:
+			d.addCallback(lambda node: node.setAffiliation(aff['jid'], aff['affiliation']))
+			
+		return d
 
 		
 	def getItems(self, nodeIdentifier, requestor, maxItems=None,
@@ -563,6 +577,9 @@ class PubSubServiceFromBackend(PubSubService):
 		error.NoPublishing: ('feature-not-implemented',
 							 'unsupported',
 							 'publish'),
+		error.NoAffiliation: ('feature-not-implemented',
+							  'unsupported',
+							  'member-affiliation'),
 	}
 
 	def __init__(self, backend):
@@ -736,7 +753,9 @@ class PubSubServiceFromBackend(PubSubService):
 
 
 	def getConfigurationOptions(self):
-		return self.backend.nodeOptions
+		d = self.backend.nodeOptions
+		#return d.addErrback(self._mapErrors)
+		return d
 
 
 	def getDefaultConfiguration(self, requestor, service, nodeType):
@@ -748,22 +767,21 @@ class PubSubServiceFromBackend(PubSubService):
 		d = self.backend.getNodeConfiguration(nodeIdentifier)
 		return d.addErrback(self._mapErrors)
 
-
 	def setConfiguration(self, requestor, service, nodeIdentifier, options):
 		d = self.backend.setNodeConfiguration(nodeIdentifier, options,
-												requestor)
+											  requestor)
 		return d.addErrback(self._mapErrors)
 
 	def setOptions(self, service, nodeIdentifier, subscriber,
 				   options, subscriptionIdentifier=None, sender=None):
 		d = self.backend.setSubscriptionOptions(nodeIdentifier, subscriber,
 				options, subscriptionIdentifier, sender)
-		return d
+		return d.addErrback(self._mapErrors)
 		
 		
 	def setAffiliations(self, requestor, service, nodeIdentifier, affiliations):
-		d = self.backend.setNodeAffiliations(nodeIdentifier, affiliations)
-		return d
+		d = self.backend.setNodeAffiliations(nodeIdentifier, requestor, affiliations)
+		return d.addErrback(self._mapErrors)
 
 	def items(self, requestor, service, nodeIdentifier, maxItems,
 					itemIdentifiers):

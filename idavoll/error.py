@@ -93,3 +93,6 @@ class NoPublishing(Error):
     """
     This node does not support publishing.
     """
+
+class NoAffiliation(Error):
+	pass

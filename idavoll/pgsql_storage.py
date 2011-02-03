@@ -14,7 +14,7 @@ from wokkel.pubsub import Subscription
 from idavoll import error, iidavoll
 
 from string import Template
-
+import psycopg2
 
 """
 Get Direct Child Nodes
@@ -24,9 +24,55 @@ parameters:
 """
 sql_get_direct_child_nodes = Template(
 """SELECT $fields from nodes
-	INNER JOIN nodes AS n ON (nodes.collection = n.node_id)
-	WHERE n.node='$node'
-	ORDER BY nodes.node""")
+ INNER JOIN nodes AS n ON (nodes.collection = n.node_id)
+ WHERE n.node='$node'
+ ORDER BY nodes.node""")
+
+"""
+Get All Ancestors
+http://explainextended.com/2009/09/24/adjacency-list-vs-nested-sets-postgresql/
+"""
+sql_get_all_parent_nodes = Template(
+"""WITH RECURSIVE
+ q AS
+ (
+ SELECT  n.node, n.collection, 1 AS level
+ FROM    nodes n
+ WHERE   node = '$node'
+ UNION ALL
+ SELECT  np.node, np.collection, level + 1
+ FROM    q
+ JOIN    nodes np
+ ON      np.node_id = q.collection
+ )
+SELECT  node
+FROM    q
+ORDER BY
+        level DESC
+""")
+
+"""
+Get All Child Nodes
+http://explainextended.com/2009/09/24/adjacency-list-vs-nested-sets-postgresql/
+"""
+sql_get_all_child_nodes = Template(
+"""WITH RECURSIVE
+ q AS
+ (
+ SELECT  node_id, node
+ FROM    nodes n
+ WHERE   node = '$node'
+ UNION ALL
+ SELECT  n.node_id, n.node
+ FROM    q
+ JOIN    nodes n
+ ON      n.collection = n.node_id
+ )
+SELECT  node
+FROM q""")
+	
+	
+
 
 class Storage:
 
@@ -86,6 +132,8 @@ class Storage:
 			node = CollectionNode(nodeIdentifier, configuration)
 			node.dbpool = self.dbpool
 			return node
+		else:
+			raise error.NodeNotFound()
 
 
 
@@ -95,7 +143,8 @@ class Storage:
 		return d
 
 	def getChildNodeIds(self, parentNodeIdentifier=''):
-		return self.dbpool.runInteraction(self._getChildNodeIds, parentNodeIdentifier)
+		return self.dbpool.runInteraction(self._getChildNodeIds,
+										  parentNodeIdentifier)
 
 	def _getChildNodeIds(self, cursor, parentNodeIdentifier):
 		sql = sql_get_direct_child_nodes.substitute(fields='nodes.node',
@@ -133,7 +182,8 @@ class Storage:
 				
 			# get collection (parent node_id)
 			if collection != '':
-				cursor.execute("""SELECT node_id from nodes where node=%s""", (collection,))
+				cursor.execute("""SELECT node_id from nodes where node=%s""",
+							   (collection,))
 				row = cursor.fetchone()
 				if row is None:
 					print 'Collection node not found'
@@ -283,7 +333,8 @@ class Node:
 	def _checkNodeExists(self, cursor):
 		cursor.execute("""SELECT node_id FROM nodes WHERE node=%s""",
 					   (self.nodeIdentifier,))
-		if not cursor.fetchone():
+		row = cursor.fetchone()
+		if not row or row[0] == 0: # '' is collection node with node_id=0
 			raise error.NodeNotFound()
 
 
@@ -346,7 +397,42 @@ class Node:
 			return cursor.fetchone()[0]
 		except TypeError:
 			return None
+			
+	# TODO: test me!!!
+	def setAffiliation(self, entity, affiliation):
+		return self.dbpool.runInteraction(self._setAffiliation, entity, affiliation)
+	
+	def _setAffiliation(self, cursor, entity, affiliation):
+		jid = entity.userhost()
+		
+		if affiliation not in ['owner', 'publisher', 'outcast']:
+			raise error.NoAffiliation()
+		
+		# check owner
+		
 
+		cursor.execute("""SELECT jid FROM entities WHERE jid=%s""", (jid,))
+		rows = cursor.fetchall()
+		if not rows:
+			cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""", (jid,))
+		
+		cursor.execute("""SELECT 1 FROM affiliations
+						  NATURAL JOIN nodes as n
+						  NATURAL JOIN entities as e
+						  WHERE n.node=%s AND e.jid=%s""", (self.nodeIdentifier, jid))
+		row = cursor.fetchone()
+		
+		# insert
+		if not row:
+			cursor.execute("""INSERT INTO affiliations (node_id, entity_id, affiliation)
+				SELECT node_id, entity_id, %s FROM 
+				(SELECT node_id FROM nodes WHERE node=%s) as n
+				CROSS JOIN (SELECT entity_id FROM entities WHERE jid=%s) as e""", (affiliation, self.nodeIdentifier, jid))
+		# update affiliation
+		else:
+			cursor.execute("""UPDATE affiliations SET affiliation=%s WHERE
+				entity_id=(SELECT entity_id FROM entities WHERE jid=%s) AND
+				node_id=(SELECT node_id FROM nodes WHERE node=%s)""", (affiliation, jid, self.nodeIdentifier))
 
 	def getSubscription(self, subscriber):
 		return self.dbpool.runInteraction(self._getSubscription, subscriber)
@@ -375,25 +461,57 @@ class Node:
 	def getSubscriptions(self, state=None):
 		return self.dbpool.runInteraction(self._getSubscriptions, state)
 
-
+	# nfvs: added child collection subscribers
 	def _getSubscriptions(self, cursor, state):
 		self._checkNodeExists(cursor)
+		
+		config = self.getConfiguration()
+		collection = config['pubsub#collection']
+		
+		# belongs to a collection node,
+		# get subscriptions for current node and all parent nodes
+		if collection and collection > 0:
+			# fetch all nodes, current + ancestors
+			query = sql_get_all_parent_nodes.substitute(
+					node=self.nodeIdentifier)
+			cursor.execute(query)
+			rows = cursor.fetchall()
+			nodes = [n[0] for n in rows if n[0] != '']
 
-		query = """SELECT jid, resource, state,
-						  subscription_type, subscription_depth
-				   FROM subscriptions
-				   NATURAL JOIN nodes
-				   NATURAL JOIN entities
-				   WHERE node=%s""";
-		values = [self.nodeIdentifier]
+			# fetch all subscriptions for the nodes
+			nodesStr = ''.join(["'" + n + "'," for n in nodes])
+			nodesStr = nodesStr[:-1]
+			# uses MIN / GROUP_BY to return only unique JIDs
+			query = """SELECT e.jid, MIN(s.resource), MIN(s.state),
+							  MIN(s.subscription_type), MIN(s.subscription_depth)
+					   FROM subscriptions s
+					   NATURAL JOIN nodes n
+					   NATURAL JOIN entities e
+					   WHERE n.node IN (%s)
+					   GROUP BY e.jid""" % nodesStr;
+			cursor.execute(query)
+			rows = cursor.fetchall()
 
-		if state:
-			query += " AND state=%s"
-			values.append(state)
+		
+		# no collection, get only subscriptions for the node
+		else:
+			query = """SELECT jid, resource, state,
+							  subscription_type, subscription_depth
+					   FROM subscriptions
+					   NATURAL JOIN nodes
+					   NATURAL JOIN entities
+					   WHERE node=%s""";
+					
+			values = [self.nodeIdentifier]
 
-		cursor.execute(query, values);
-		rows = cursor.fetchall()
+			if state:
+				query += " AND state=%s"
+				values.append(state)
 
+			cursor.execute(query, values);
+			rows = cursor.fetchall()
+
+		# fill subscriptions
 		subscriptions = []
 		for row in rows:
 			subscriber = jid.JID('%s/%s' % (row[0], row[1]))
