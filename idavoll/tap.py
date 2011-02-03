@@ -61,15 +61,15 @@ def makeService(config):
 		from idavoll.pgsql_storage import Storage
 		
 		args = {}
-		if config['dbuser']:
+		if 'dbuser' in config:
 			args['user'] = config['dbuser']
-		if config['dbpass']:
+		if 'dbpass' in config:
 			args['password'] = config['dbuser']
-		if config['dbname']:
+		if 'dbname' in config:
 			args['database'] = config['dbname']
-		if config['dbhost']:
+		if 'dbhost' in config:
 			args['host'] = config['dbhost']
-		if config['dbport']:
+		if 'dbport' in config:
 			args['port'] = config['dbport']
 		args['cp_reconnect'] = True
 			
@@ -122,7 +122,7 @@ def makeService(config):
 
 	cs.factory.maxDelay = 900
 
-	if config["verbose"]:
+	if 'verbose' in config and config['verbose']:
 		cs.logTraffic = True
 
 	FallbackHandler().setHandlerParent(cs)
@@ -131,7 +131,8 @@ def makeService(config):
 
 	ps = IPubSubService(bs)
 	ps.setHandlerParent(cs)
-	ps.hideNodes = config["hide-nodes"]
+	if 'hide-nodes' in config:
+		ps.hideNodes = config["hide-nodes"]
 	ps.serviceJID = config["jid"]
 
 	return s

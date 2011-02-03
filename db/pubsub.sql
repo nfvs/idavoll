@@ -1,4 +1,6 @@
-CREATE LANGUAGE plpgsql;
+/*CREATE LANGUAGE plpgsql;*/
+
+CREATE USER pubsub WITH PASSWORD pubsub;
 
 CREATE TABLE entities (
     entity_id serial PRIMARY KEY,
@@ -29,16 +31,14 @@ CREATE INDEX nodes_path_idx ON nodes USING btree(path);
 */
 
 
-INSERT INTO nodes (node_id, node, node_type) values (0, '', 'collection');
-DELETE FROM nodes WHERE node_id=0;
-
-
-
-ALTER TABLE nodes ADD CONSTRAINT pk_nodes_id PRIMARY KEY (node_id);
-/*CREATE INDEX ix_nodes_lft ON nodes (lft);
+/*ALTER TABLE nodes ADD CONSTRAINT pk_nodes_id PRIMARY KEY (node_id);
+CREATE INDEX ix_nodes_lft ON nodes (lft);
 CREATE INDEX ix_nodes_rgt ON nodes (rgt);*/
+CREATE INDEX ix_nodes_id ON nodes (node_id);
 CREATE INDEX ix_nodes_parent ON nodes (collection);
 
+
+INSERT INTO nodes (node_id, node, node_type) values (0, '', 'collection');
 
 
 CREATE TABLE affiliations (
@@ -72,3 +72,10 @@ CREATE TABLE items (
     date timestamp with time zone NOT NULL DEFAULT now(),
     UNIQUE (node_id, item)
 );
+
+GRANT ALL PRIVILEGES ON entities TO pubsub;
+GRANT ALL PRIVILEGES ON nodes TO pubsub;
+GRANT ALL PRIVILEGES ON affiliations TO pubsub;
+GRANT ALL PRIVILEGES ON subscriptions TO pubsub;
+GRANT ALL PRIVILEGES ON items TO pubsub;
+
