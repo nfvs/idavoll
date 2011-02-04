@@ -13,13 +13,19 @@ from idavoll import tap
 application = service.Application("Idavoll")
 
 config = {
-    'jid': JID('pubsub.example.org'),
-    'secret': 'secret',
-    'rhost': '127.0.0.1',
-    'rport': 5347,
-    'backend': 'memory',
-    'verbose': True,
-    'hide-nodes': False,
+	'jid': JID('pubsub.example.org'),
+	'secret': 'secret',
+	'rhost': '127.0.0.1',
+	'rport': 5347,
+	'backend': 'pgsql',
+	'dbuser': 'dbuser',
+	'dbpass': 'dbpass',
+	'dbhost': '127.0.0.1',
+	'dbname': 'pubsub',
+	'cdbhost': 'couchdb_host', # - couchdb engine
+	'cdbport': 'couchdb_port', # -
+	'verbose': True,
+	'hide-nodes': False,
 }
 
 idavollService = tap.makeService(config)
