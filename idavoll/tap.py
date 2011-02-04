@@ -32,6 +32,8 @@ class Options(usage.Options):
 		('dbpass', None, None, 'Database password (pgsql backend)'),
 		('dbhost', None, None, 'Database host (pgsql backend)'),
 		('dbport', None, None, 'Database port (pgsql backend)'),
+		('cdbhost', None, None, 'CouchDB host (couchdb backend)'),
+		('cdbport', None, None, 'CouchDB port (couchdb backend)'),
 	]
 
 	optFlags = [
@@ -85,18 +87,17 @@ def makeService(config):
 
 	elif config['backend'] == 'couchdb':
 		from idavoll.couchdb_storage import Storage
-		#from restkit import SimplePool
 		from couchdbkit import Server
 
 		# default arguments
-		if config['dbhost'] is None:
-			config['dbhost'] = DEFAULT_OPTIONS['couchdb-host']
-		if config['dbport'] is None:
-			config['dbport'] = DEFAULT_OPTIONS['couchdb-port']
+		if 'cdbhost' not in config or config['cdbhost'] is None:
+			config['cdbhost'] = DEFAULT_OPTIONS['couchdb-host']
+		if 'cdbport' not in config or config['cdbport'] is None:
+			config['cdbport'] = DEFAULT_OPTIONS['couchdb-port']
 
 		try:
 			#pool = SimplePool(keepalive=5) # pool of 5 connections to couchdb
-			server = Server('http://%s:%s/' % (config['dbhost'], config['dbport']))
+			server = Server('http://%s:%s/' % (config['cdbhost'], config['cdbport']))
 			db = server.get_or_create_db('pubsub')
 		except restkit.errors.RequestFailed as e:
 			print 'Error connecting to couchdb: %s' % e
@@ -108,6 +109,10 @@ def makeService(config):
 		from couchdbkit.loaders import FileSystemDocsLoader
 		loader = FileSystemDocsLoader('db/couchdb')
 		loader.sync(db)
+
+	elif config['backend'] == 'pgsql_couchdb':
+		from idavoll.pgsql_couchdb_storage import Storage
+		from couchdbkit import Server
 
 	bs = BackendService(st)
 	bs.setName('backend')
