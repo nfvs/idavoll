@@ -272,18 +272,20 @@ class Storage:
 			sqlStr = "UPDATE subscriptions SET "
 
 			if 'pubsub#subscription_type' in options:
-				sqlStr += " subscription_type = %s," % options['pubsub#subscription_type']
+				sqlStr += " subscription_type = '%s'," % options['pubsub#subscription_type']
 			if 'pubsub#subscription_depth' in options:
-				sqlStr += " subscription_type = %s," % options['pubsub#subscription_type']
+				sqlStr += " subscription_depth = '%s'," % options['pubsub#subscription_type']
 			
 			# remove ','
 			if sqlStr[-1:] == ",":
 				sqlStr = sqlStr[:-1]
 
+			# WHERE
+			sqlStr += " WHERE node_id=(SELECT node_id FROM nodes WHERE node='%s') AND entity_id=(SELECT entity_id FROM entities WHERE jid='%s');" % (nodeIdentifier, userhost)
 			cursor.execute(sqlStr)
 		except Exception as e:
-			#raise error.
-			pass
+			print 'ERROR: %s' % e
+			raise error.Error()
 
 
 
