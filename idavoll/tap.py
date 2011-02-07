@@ -42,7 +42,8 @@ class Options(usage.Options):
 	]
 
 	def postOptions(self):
-		if self['backend'] not in ['pgsql', 'memory', 'couchdb']:
+		if self['backend'] not in ['pgsql', 'memory', 'couchdb',
+								   'pgsql_couchdb']:
 			raise usage.UsageError, "Unknown backend!"
 
 		self['jid'] = JID(self['jid'])
@@ -111,8 +112,45 @@ def makeService(config):
 		loader.sync(db)
 
 	elif config['backend'] == 'pgsql_couchdb':
+		from twisted.enterprise import adbapi
 		from idavoll.pgsql_couchdb_storage import Storage
 		from couchdbkit import Server
+		
+		args = {}
+		if 'dbuser' in config:
+			args['user'] = config['dbuser']
+		if 'dbpass' in config:
+			args['password'] = config['dbuser']
+		if 'dbname' in config:
+			args['database'] = config['dbname']
+		if 'dbhost' in config:
+			args['host'] = config['dbhost']
+		if 'dbport' in config:
+			args['port'] = config['dbport']
+		args['cp_reconnect'] = True
+			
+		
+		dbpool = adbapi.ConnectionPool('psycopg2',
+									   **args
+									   #client_encoding='utf-8',
+									   )
+
+		# couchdb default arguments
+		if 'cdbhost' not in config or config['cdbhost'] is None:
+			config['cdbhost'] = DEFAULT_OPTIONS['couchdb-host']
+		if 'cdbport' not in config or config['cdbport'] is None:
+			config['cdbport'] = DEFAULT_OPTIONS['couchdb-port']
+
+		"""
+		try:
+			server = Server('http://%s:%s/' % (config['cdbhost'], config['cdbport']))
+			couchdb = server.get_or_create_db('pubsub')
+		except restkit.errors.RequestFailed as e:
+			print 'Error connecting to couchdb: %s' % e
+			exit(-1)
+		"""
+
+		st = Storage(dbpool)
 
 	bs = BackendService(st)
 	bs.setName('backend')

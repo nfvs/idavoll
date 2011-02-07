@@ -1,3 +1,6 @@
+from zope.interface import implements
+
+from idavoll import error, iidavoll
 from idavoll import pgsql_storage, couchdb_storage
 
 """
@@ -10,7 +13,7 @@ class Storage(pgsql_storage.Storage):
 	
 	def __init__(self, dbpool):
 		pgsql_storage.Storage.__init__(self, dbpool)
-		couchdb_storage.Storage.__init__(self, dbpool)
+		#couchdb_storage.Storage.__init__(self, couchdb)
 
 class Node(pgsql_storage.Node):
 	implements(iidavoll.INode)
