@@ -41,7 +41,8 @@ class CouchStorage:
 		@staticmethod
 		def key(node='', item_id=''):
 			#return 'item' + KEY_SEPARATOR + node + KEY_SEPARATOR + item_id
-			return node + KEY_SEPARATOR + item_id
+			#return node + KEY_SEPARATOR + item_id
+			return item_id
 
 
 class Storage(pgsql_storage.Storage):
@@ -165,7 +166,7 @@ class LeafNode(pgsql_storage.LeafNode):
 		keys = [[self.nodeIdentifier, i] for i in itemIdentifiers]
 
 		items = CouchStorage.Item.view(
-			'pubsub/items_by_node',
+			'pubsub/items_by_node_item',
 			keys=keys
 		)
 		
