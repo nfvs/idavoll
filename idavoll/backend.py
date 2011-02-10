@@ -617,7 +617,7 @@ class PubSubServiceFromBackend(PubSubService):
 			"meta-data",
 			"publish",
 			"purge-nodes",
-			"retract-items",
+			#"retract-items",
 			"retrieve-affiliations",
 			"retrieve-default",
 			"retrieve-items",
@@ -811,9 +811,11 @@ class PubSubServiceFromBackend(PubSubService):
 
 
 	def retract(self, requestor, service, nodeIdentifier, itemIdentifiers):
-		d = self.backend.retractItem(nodeIdentifier, itemIdentifiers,
-									  requestor)
-		return d.addErrback(self._mapErrors)
+		# NFVS: unsupported
+		raise Unsupported('retract-items')
+		#d = self.backend.retractItem(nodeIdentifier, itemIdentifiers,
+		#							  requestor)
+		#return d.addErrback(self._mapErrors)
 
 
 	def purge(self, requestor, service, nodeIdentifier):

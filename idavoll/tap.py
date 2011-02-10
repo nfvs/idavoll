@@ -108,7 +108,7 @@ def makeService(config):
 		
 		# upload design docs
 		from couchdbkit.loaders import FileSystemDocsLoader
-		loader = FileSystemDocsLoader('db/couchdb')
+		loader = FileSystemDocsLoader('db/couchdb/pubsub')
 		loader.sync(db)
 
 	elif config['backend'] == 'pgsql_couchdb':
@@ -141,16 +141,20 @@ def makeService(config):
 		if 'cdbport' not in config or config['cdbport'] is None:
 			config['cdbport'] = DEFAULT_OPTIONS['couchdb-port']
 
-		"""
 		try:
 			server = Server('http://%s:%s/' % (config['cdbhost'], config['cdbport']))
-			couchdb = server.get_or_create_db('pubsub')
+			couchdb = server.get_or_create_db('pubsub_items')
 		except restkit.errors.RequestFailed as e:
 			print 'Error connecting to couchdb: %s' % e
 			exit(-1)
-		"""
 
-		st = Storage(dbpool)
+		
+		# upload design docs
+		from couchdbkit.loaders import FileSystemDocsLoader
+		loader = FileSystemDocsLoader('db/couchdb/pubsub_items')
+		loader.sync(couchdb)
+
+		st = Storage(dbpool, couchdb)
 
 	bs = BackendService(st)
 	bs.setName('backend')
