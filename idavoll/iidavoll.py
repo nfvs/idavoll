@@ -7,15 +7,14 @@ Interfaces for idavoll.
 
 from zope.interface import Attribute, Interface
 
+
 class IBackendService(Interface):
     """ Interface to a backend service of a pubsub service. """
-
 
     def __init__(storage):
         """
         @param storage: Object providing L{IStorage}.
         """
-
 
     def supportsPublisherAffiliation():
         """ Reports if the backend supports the publisher affiliation.
@@ -23,13 +22,11 @@ class IBackendService(Interface):
         @rtype: C{bool}
         """
 
-
     def supportsOutcastAffiliation():
         """ Reports if the backend supports the publisher affiliation.
 
         @rtype: C{bool}
         """
-
 
     def supportsPersistentItems():
         """ Reports if the backend supports persistent items.
@@ -37,20 +34,17 @@ class IBackendService(Interface):
         @rtype: C{bool}
         """
 
-
     def getNodeType(nodeIdentifier):
         """ Return type of a node.
 
         @return: a deferred that returns either 'leaf' or 'collection'
         """
 
-
     def getNodes():
         """ Returns list of all nodes.
 
         @return: a deferred that returns a C{list} of node ids.
         """
-
 
     def getNodeMetaData(nodeIdentifier):
         """ Return meta data for a node.
@@ -59,13 +53,11 @@ class IBackendService(Interface):
                  metadata.
         """
 
-
     def createNode(nodeIdentifier, owner, config=None):
         """ Create a node.
 
         @return: a deferred that fires when the node has been created.
         """
-
 
     def registerPreDelete(preDeleteFn):
         """ Register a callback that is called just before a node deletion.
@@ -86,17 +78,14 @@ class IBackendService(Interface):
         returned in the list of deferreds.
         """
 
-
     def deleteNode(nodeIdentifier, requestor):
         """ Delete a node.
 
         @return: a deferred that fires when the node has been deleted.
         """
 
-
     def purgeNode(nodeIdentifier, requestor):
         """ Removes all items in node from persistent storage """
-
 
     def subscribe(nodeIdentifier, subscriber, requestor, options):
         """ Request the subscription of an entity to a pubsub node.
@@ -111,7 +100,6 @@ class IBackendService(Interface):
         @return: a deferred that returns the subscription state
         """
 
-
     def unsubscribe(nodeIdentifier, subscriber, requestor):
         """ Cancel the subscription of an entity to a pubsub node.
 
@@ -123,13 +111,11 @@ class IBackendService(Interface):
         @return: a deferred that fires when unsubscription is complete.
         """
 
-
     def getSubscribers(nodeIdentifier):
         """ Get node subscriber list.
 
         @return: a deferred that fires with the list of subscribers.
         """
-
 
     def getSubscriptions(entity):
         """ Report the list of current subscriptions with this pubsub service.
@@ -141,7 +127,6 @@ class IBackendService(Interface):
                  as tuples C{(nodeIdentifier, subscriber, subscription)}.
         """
 
-
     def getAffiliations(entity):
         """ Report the list of current affiliations with this pubsub service.
 
@@ -152,7 +137,6 @@ class IBackendService(Interface):
                  as tuples C{(nodeIdentifier, affiliation)}.
         """
 
-
     def publish(nodeIdentifier, items, requestor):
         """ Publish items to a pubsub node.
 
@@ -160,10 +144,8 @@ class IBackendService(Interface):
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
 
-
     def registerNotifier(observerfn, *args, **kwargs):
         """ Register callback which is called for notification. """
-
 
     def getNotifications(nodeIdentifier, items):
         """
@@ -199,7 +181,6 @@ class IBackendService(Interface):
         @rtype: C{list}
         """
 
-
     def getItems(nodeIdentifier, requestor, maxItems=None, itemIdentifiers=[]):
         """ Retrieve items from persistent storage
 
@@ -210,17 +191,14 @@ class IBackendService(Interface):
         @return: a deferred that returns the requested items
         """
 
-
     def retractItem(nodeIdentifier, itemIdentifier, requestor):
         """ Removes item in node from persistent storage """
-
 
 
 class IStorage(Interface):
     """
     Storage interface.
     """
-
 
     def getNode(nodeIdentifier):
         """
@@ -231,17 +209,16 @@ class IStorage(Interface):
         @return: deferred that returns a L{INode} providing object.
         """
 
-	def getChildNodeIds(parent):
-		"""
-		Return ids for all child collection and leaf nodes of the parent node.
-		If the parent node is empty, return all root collection nodes and leaf
-		nodes not associated with any collection
-	
+    def getChildNodeIds(parent):
+        """
+        Return ids for all child collection and leaf nodes of the parent node.
+        If the parent node is empty, return all root collection nodes and leaf
+        nodes not associated with any collection
+
         @param nodeIdentifier: NodeID of the parent node.
         @type nodeIdentifier: C{unicode}
         @return: deferred that returns a list of NodeIDs (C{unicode}).
-		"""
-
+        """
 
     def getNodeIds():
         """
@@ -249,7 +226,6 @@ class IStorage(Interface):
 
         @return: deferred that returns a list of NodeIDs (C{unicode}).
         """
-
 
     def createNode(nodeIdentifier, owner, config=None):
         """
@@ -270,7 +246,6 @@ class IStorage(Interface):
         @return: deferred that fires on creation.
         """
 
-
     def deleteNode(nodeIdentifier):
         """
         Delete a node.
@@ -280,13 +255,11 @@ class IStorage(Interface):
         @return: deferred that fires on deletion.
         """
 
-	def setSubscriptionOptions(self, nodeIdentifier, subscriber, options,
-							   subscriptionIdentifier=None, sender=None):
-		"""
-		Sets the options for a subscription
-		
-		
-		"""
+    def setSubscriptionOptions(self, nodeIdentifier, subscriber, options,
+                               subscriptionIdentifier=None, sender=None):
+        """
+        Sets the options for a subscription
+        """
 
     def getAffiliations(entity):
         """
@@ -302,7 +275,6 @@ class IStorage(Interface):
                  of the type L{unicode} and C{affiliation} is one of
                  C{'owner'}, C{'publisher'} and C{'outcast'}.
         """
-
 
     def getSubscriptions(entity):
         """
@@ -321,7 +293,6 @@ class IStorage(Interface):
                  C{'unconfigured'}.
         """
 
-
     def getDefaultConfiguration(nodeType):
         """
         Get the default configuration for the given node type.
@@ -335,9 +306,6 @@ class IStorage(Interface):
         """
 
 
-
-
-
 class INode(Interface):
     """
     Interface to the class of objects that represent nodes.
@@ -347,14 +315,12 @@ class INode(Interface):
                            {'collection'}.""")
     nodeIdentifier = Attribute("""The node identifer of this node""")
 
-
     def getType():
         """
         Get node's type.
 
         @return: C{'leaf'} or C{'collection'}.
         """
-
 
     def getConfiguration():
         """
@@ -366,7 +332,6 @@ class INode(Interface):
         @return: C{dict} of configuration options.
         """
 
-
     def getMetaData():
         """
         Get node's meta data.
@@ -376,7 +341,6 @@ class INode(Interface):
 
         @return: C{dict} of meta data.
         """
-
 
     def setConfiguration(options):
         """
@@ -390,7 +354,6 @@ class INode(Interface):
         @returns: a deferred that fires upon success.
         """
 
-
     def getAffiliation(entity):
         """
         Get affiliation of entity with this node.
@@ -401,10 +364,9 @@ class INode(Interface):
                  or C{None}.
         """
 
-	def setAffiliations():
-		"""
-		"""
-
+    def setAffiliations():
+        """
+        """
 
     def getSubscription(subscriber):
         """
@@ -415,7 +377,6 @@ class INode(Interface):
         @return: deferred that returns the subscription state (C{'subscribed'},
                  C{'pending'} or C{None}).
         """
-
 
     def getSubscriptions(state=None):
         """
@@ -431,7 +392,6 @@ class INode(Interface):
                  L{wokkel.pubsub.Subscription}s.
         """
 
-
     def addSubscription(subscriber, state, config):
         """
         Add new subscription to this node with given state.
@@ -445,7 +405,6 @@ class INode(Interface):
         @return: deferred that fires on subscription.
         """
 
-
     def removeSubscription(subscriber):
         """
         Remove subscription to this node.
@@ -454,7 +413,6 @@ class INode(Interface):
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @return: deferred that fires on removal.
         """
-
 
     def isSubscribed(entity):
         """
@@ -468,7 +426,6 @@ class INode(Interface):
         @return: deferred that returns a C{bool}.
         """
 
-
     def getAffiliations():
         """
         Get affiliations of entities with this node.
@@ -478,7 +435,6 @@ class INode(Interface):
                  and affiliation is one of C{'owner'},
         C{'publisher'}, C{'outcast'}.
         """
-
 
 
 class ILeafNode(Interface):
@@ -500,7 +456,6 @@ class ILeafNode(Interface):
         @return: deferred that fires upon success.
         """
 
-
     def removeItems(itemIdentifiers):
         """
         Remove items by id.
@@ -509,7 +464,6 @@ class ILeafNode(Interface):
         @return: deferred that fires with a C{list} of ids of the items that
                  were deleted
         """
-
 
     def getItems(maxItems=None):
         """
@@ -525,7 +479,6 @@ class ILeafNode(Interface):
         @return: deferred that fires with a C{list} of found items.
         """
 
-
     def getItemsById(itemIdentifiers):
         """
         Get items by item id.
@@ -538,14 +491,12 @@ class ILeafNode(Interface):
         @return: deferred that fires with a C{list} of found items.
         """
 
-
     def purge():
         """
         Purge node of all items in persistent storage.
 
         @return: deferred that fires when the node has been purged.
         """
-
 
 
 class IGatewayStorage(Interface):
@@ -595,7 +546,6 @@ class IGatewayStorage(Interface):
         @type nodeIdentifier: C{unicode}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
-
 
     def hasCallbacks(service, nodeIdentifier):
         """

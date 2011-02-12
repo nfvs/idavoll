@@ -10,11 +10,11 @@ from twisted.web2.tap import Web2Service
 from idavoll import gateway, tap
 from idavoll.gateway import RemoteSubscriptionService
 
+
 class Options(tap.Options):
     optParameters = [
             ('webport', None, '8086', 'Web port'),
     ]
-
 
 
 def getManholeFactory(namespace, **passwords):
@@ -28,7 +28,6 @@ def getManholeFactory(namespace, **passwords):
             checkers.InMemoryUsernamePasswordDatabaseDontUse(**passwords))
     f = manhole_ssh.ConchFactory(p)
     return f
-
 
 
 def makeService(config):
@@ -94,4 +93,3 @@ def makeService(config):
     manholeService.setServiceParent(s)
 
     return s
-

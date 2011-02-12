@@ -10,6 +10,7 @@ from wokkel.pubsub import Subscription
 
 from idavoll import error, iidavoll
 
+
 class Storage:
 
     implements(iidavoll.IStorage)
@@ -31,7 +32,6 @@ class Storage:
                                   copy.copy(self.defaultConfig['collection']))
         self._nodes = {'': rootNode}
 
-
     def getNode(self, nodeIdentifier):
         try:
             node = self._nodes[nodeIdentifier]
@@ -40,10 +40,8 @@ class Storage:
 
         return defer.succeed(node)
 
-
     def getNodeIds(self):
         return defer.succeed(self._nodes.keys())
-
 
     def createNode(self, nodeIdentifier, owner, config):
         if nodeIdentifier in self._nodes:
@@ -57,7 +55,6 @@ class Storage:
 
         return defer.succeed(None)
 
-
     def deleteNode(self, nodeIdentifier):
         try:
             del self._nodes[nodeIdentifier]
@@ -66,13 +63,11 @@ class Storage:
 
         return defer.succeed(None)
 
-
     def getAffiliations(self, entity):
         entity = entity.userhost()
         return defer.succeed([(node.nodeIdentifier, node._affiliations[entity])
                               for name, node in self._nodes.iteritems()
                               if entity in node._affiliations])
-
 
     def getSubscriptions(self, entity):
         subscriptions = []
@@ -83,7 +78,6 @@ class Storage:
                     subscriptions.append(subscription)
 
         return defer.succeed(subscriptions)
-
 
     def getDefaultConfiguration(self, nodeType):
         if nodeType == 'collection':
@@ -102,20 +96,16 @@ class Node:
         self._subscriptions = {}
         self._config = config
 
-
     def getType(self):
         return self.nodeType
 
-
     def getConfiguration(self):
         return self._config
-
 
     def getMetaData(self):
         config = copy.copy(self._config)
         config["pubsub#node_type"] = self.nodeType
         return config
-
 
     def setConfiguration(self, options):
         for option in options:
@@ -124,10 +114,8 @@ class Node:
 
         return defer.succeed(None)
 
-
     def getAffiliation(self, entity):
         return defer.succeed(self._affiliations.get(entity.userhost()))
-
 
     def getSubscription(self, subscriber):
         try:
@@ -137,14 +125,11 @@ class Node:
         else:
             return defer.succeed(subscription)
 
-
     def getSubscriptions(self, state=None):
         return defer.succeed(
                 [subscription
                  for subscription in self._subscriptions.itervalues()
                  if state is None or subscription.state == state])
-
-
 
     def addSubscription(self, subscriber, state, options):
         if self._subscriptions.get(subscriber.full()):
@@ -155,7 +140,6 @@ class Node:
         self._subscriptions[subscriber.full()] = subscription
         return defer.succeed(None)
 
-
     def removeSubscription(self, subscriber):
         try:
             del self._subscriptions[subscriber.full()]
@@ -164,22 +148,19 @@ class Node:
 
         return defer.succeed(None)
 
-
     def isSubscribed(self, entity):
         for subscriber, subscription in self._subscriptions.iteritems():
-            if jid.internJID(subscriber).userhost() == entity.userhost() and \
-                    subscription.state == 'subscribed':
+            if (jid.internJID(subscriber).userhost() == entity.userhost() and
+                subscription.state == 'subscribed'):
                 return defer.succeed(True)
 
         return defer.succeed(False)
 
-
     def getAffiliations(self):
-        affiliations = [(jid.internJID(entity), affiliation) for entity, affiliation
-                       in self._affiliations.iteritems()]
+        affiliations = [(jid.internJID(entity), affiliation) \
+                for entity, affiliation in self._affiliations.iteritems()]
 
         return defer.succeed(affiliations)
-
 
 
 class PublishedItem(object):
@@ -199,7 +180,6 @@ class PublishedItem(object):
         self.publisher = publisher
 
 
-
 class LeafNode(Node):
 
     implements(iidavoll.ILeafNode)
@@ -211,7 +191,6 @@ class LeafNode(Node):
         self._items = {}
         self._itemlist = []
 
-
     def storeItems(self, items, publisher):
         for element in items:
             item = PublishedItem(element, publisher)
@@ -222,7 +201,6 @@ class LeafNode(Node):
             self._itemlist.append(item)
 
         return defer.succeed(None)
-
 
     def removeItems(self, itemIdentifiers):
         deleted = []
@@ -239,14 +217,12 @@ class LeafNode(Node):
 
         return defer.succeed(deleted)
 
-
     def getItems(self, maxItems=None):
         if maxItems:
             itemList = self._itemlist[-maxItems:]
         else:
             itemList = self._itemlist
         return defer.succeed([item.element for item in itemList])
-
 
     def getItemsById(self, itemIdentifiers):
         items = []
@@ -259,7 +235,6 @@ class LeafNode(Node):
                 items.append(item.element)
         return defer.succeed(items)
 
-
     def purge(self):
         self._items = {}
         self._itemlist = []
@@ -271,7 +246,6 @@ class CollectionNode(Node):
     nodeType = 'collection'
 
 
-
 class GatewayStorage(object):
     """
     Memory based storage facility for the XMPP-HTTP gateway.
@@ -279,7 +253,6 @@ class GatewayStorage(object):
 
     def __init__(self):
         self.callbacks = {}
-
 
     def addCallback(self, service, nodeIdentifier, callback):
         try:
@@ -293,7 +266,6 @@ class GatewayStorage(object):
 
         return defer.succeed(None)
 
-
     def removeCallback(self, service, nodeIdentifier, callback):
         try:
             callbacks = self.callbacks[service, nodeIdentifier]
@@ -306,7 +278,6 @@ class GatewayStorage(object):
 
             return defer.succeed(not callbacks)
 
-
     def getCallbacks(self, service, nodeIdentifier):
         try:
             callbacks = self.callbacks[service, nodeIdentifier]
@@ -314,7 +285,6 @@ class GatewayStorage(object):
             return defer.fail(error.NoCallbacks())
         else:
             return defer.succeed(callbacks)
-
 
     def hasCallbacks(self, service, nodeIdentifier):
         return defer.succeed((service, nodeIdentifier) in self.callbacks)

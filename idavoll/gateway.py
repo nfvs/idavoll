@@ -34,11 +34,11 @@ NS_ATOM = 'http://www.w3.org/2005/Atom'
 MIME_ATOM_ENTRY = 'application/atom+xml;type=entry'
 MIME_JSON = 'application/json'
 
+
 class XMPPURIParseError(ValueError):
     """
     Raised when a given XMPP URI couldn't be properly parsed.
     """
-
 
 
 def getServiceAndNode(uri):
@@ -80,13 +80,11 @@ def getServiceAndNode(uri):
     return service, nodeIdentifier
 
 
-
 def getXMPPURI(service, nodeIdentifier):
     """
     Construct an XMPP URI from a service JID and node identifier.
     """
     return "xmpp:%s?;node=%s" % (service.full(), nodeIdentifier or '')
-
 
 
 class WebStreamParser(object):
@@ -97,18 +95,14 @@ class WebStreamParser(object):
         self.elementStream.DocumentEndEvent = self.docEnd
         self.done = False
 
-
     def docStart(self, elem):
         self.document = elem
-
 
     def elem(self, elem):
         self.document.addChild(elem)
 
-
     def docEnd(self):
         self.done = True
-
 
     def parse(self, stream):
         def endOfStream(result):
@@ -122,7 +116,6 @@ class WebStreamParser(object):
         return d
 
 
-
 class CreateResource(resource.Resource):
     """
     A resource to create a publish-subscribe node.
@@ -132,9 +125,7 @@ class CreateResource(resource.Resource):
         self.serviceJID = serviceJID
         self.owner = owner
 
-
     http_GET = None
-
 
     def http_POST(self, request):
         """
@@ -152,7 +143,6 @@ class CreateResource(resource.Resource):
         return d
 
 
-
 class DeleteResource(resource.Resource):
     """
     A resource to create a publish-subscribe node.
@@ -162,9 +152,7 @@ class DeleteResource(resource.Resource):
         self.serviceJID = serviceJID
         self.owner = owner
 
-
     http_GET = None
-
 
     def http_POST(self, request):
         """
@@ -192,7 +180,6 @@ class DeleteResource(resource.Resource):
         def respond(result):
             return http.Response(responsecode.NO_CONTENT)
 
-
         def trapNotFound(failure):
             failure.trap(error.NodeNotFound)
             return http.StatusResponse(responsecode.NOT_FOUND,
@@ -213,7 +200,6 @@ class DeleteResource(resource.Resource):
         return d
 
 
-
 class PublishResource(resource.Resource):
     """
     A resource to publish to a publish-subscribe node.
@@ -224,9 +210,7 @@ class PublishResource(resource.Resource):
         self.serviceJID = serviceJID
         self.owner = owner
 
-
     http_GET = None
-
 
     def checkMediaType(self, request):
         ctype = request.headers.getHeader('content-type')
@@ -247,11 +231,9 @@ class PublishResource(resource.Resource):
                     "Unsupported Media Type: %s" %
                         http_headers.generateContentType(ctype)))
 
-
     def parseXMLPayload(self, stream):
         p = WebStreamParser()
         return p.parse(stream)
-
 
     def http_POST(self, request):
         """
@@ -302,11 +284,10 @@ class PublishResource(resource.Resource):
         return d
 
 
-
 class ListResource(resource.Resource):
+
     def __init__(self, service):
         self.service = service
-
 
     def render(self, request):
         def responseFromNodes(nodeIdentifiers):
@@ -320,9 +301,7 @@ class ListResource(resource.Resource):
         return d
 
 
-
 # Service for subscribing to remote XMPP Pubsub nodes and web resources
-
 def extractAtomEntries(items):
     """
     Extract atom entries from a list of publish-subscribe items.
@@ -352,7 +331,6 @@ def extractAtomEntries(items):
     return atomEntries
 
 
-
 def constructFeed(service, nodeIdentifier, entries, title):
     nodeURI = getXMPPURI(service, nodeIdentifier)
     now = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime())
@@ -369,7 +347,6 @@ def constructFeed(service, nodeIdentifier, entries, title):
     return feed
 
 
-
 class RemoteSubscriptionService(service.Service, PubSubClient):
     """
     Service for subscribing to remote XMPP Publish-Subscribe nodes.
@@ -382,7 +359,6 @@ class RemoteSubscriptionService(service.Service, PubSubClient):
         self.jid = jid
         self.storage = storage
 
-
     def trapNotFound(self, failure):
         failure.trap(StanzaError)
 
@@ -390,7 +366,6 @@ class RemoteSubscriptionService(service.Service, PubSubClient):
             raise error.NodeNotFound()
         else:
             return failure
-
 
     def subscribeCallback(self, jid, nodeIdentifier, callback):
         """
@@ -430,7 +405,6 @@ class RemoteSubscriptionService(service.Service, PubSubClient):
                                                          callback))
         return d
 
-
     def unsubscribeCallback(self, jid, nodeIdentifier, callback):
         """
         Unsubscribe a callback.
@@ -446,7 +420,6 @@ class RemoteSubscriptionService(service.Service, PubSubClient):
         d = self.storage.removeCallback(jid, nodeIdentifier, callback)
         d.addCallback(cb)
         return d
-
 
     def itemsReceived(self, event):
         """
@@ -478,7 +451,6 @@ class RemoteSubscriptionService(service.Service, PubSubClient):
                 self.callCallbacks(service, nodeIdentifier, payload,
                                    contentType)
 
-
     def deleteReceived(self, event):
         """
         Fire up HTTP client to do callback
@@ -489,7 +461,6 @@ class RemoteSubscriptionService(service.Service, PubSubClient):
         redirectURI = event.redirectURI
         self.callCallbacks(service, nodeIdentifier, eventType='DELETED',
                            redirectURI=redirectURI)
-
 
     def _postTo(self, callbacks, service, nodeIdentifier,
                       payload=None, contentType=None, eventType=None,
@@ -527,7 +498,6 @@ class RemoteSubscriptionService(service.Service, PubSubClient):
         for callbackURI in callbacks:
             reactor.callLater(0, postNotification, callbackURI)
 
-
     def callCallbacks(self, service, nodeIdentifier,
                             payload=None, contentType=None, eventType=None,
                             redirectURI=None):
@@ -542,7 +512,6 @@ class RemoteSubscriptionService(service.Service, PubSubClient):
                                     contentType, eventType, redirectURI)
         d.addErrback(eb)
         d.addErrback(log.err)
-
 
 
 class RemoteSubscribeBaseResource(resource.Resource):
@@ -574,9 +543,7 @@ class RemoteSubscribeBaseResource(resource.Resource):
         self.service = service
         self.params = None
 
-
     http_GET = None
-
 
     def http_POST(self, request):
         def trapNotFound(failure):
@@ -612,7 +579,6 @@ class RemoteSubscribeBaseResource(resource.Resource):
         return d
 
 
-
 class RemoteSubscribeResource(RemoteSubscribeBaseResource):
     """
     Resource to subscribe to a remote publish-subscribe node.
@@ -622,7 +588,6 @@ class RemoteSubscribeResource(RemoteSubscribeBaseResource):
     node, a POST request will be perfomed on the callback URI.
     """
     serviceMethod = 'subscribeCallback'
-
 
 
 class RemoteUnsubscribeResource(RemoteSubscribeBaseResource):
@@ -635,7 +600,6 @@ class RemoteUnsubscribeResource(RemoteSubscribeBaseResource):
     serviceMethod = 'unsubscribeCallback'
 
 
-
 class RemoteItemsResource(resource.Resource):
     """
     Resource for retrieving items from a remote pubsub node.
@@ -643,7 +607,6 @@ class RemoteItemsResource(resource.Resource):
 
     def __init__(self, service):
         self.service = service
-
 
     def render(self, request):
         try:
@@ -689,9 +652,7 @@ class RemoteItemsResource(resource.Resource):
         return d
 
 
-
 # Client side code to interact with a service as provided above
-
 def getPageWithFactory(url, contextFactory=None, *args, **kwargs):
     """Download a web page.
 
@@ -716,7 +677,6 @@ def getPageWithFactory(url, contextFactory=None, *args, **kwargs):
     return factory
 
 
-
 class CallbackResource(resource.Resource):
     """
     Web resource for retrieving gateway notifications.
@@ -725,9 +685,7 @@ class CallbackResource(resource.Resource):
     def __init__(self, callback):
         self.callback = callback
 
-
     http_GET = None
-
 
     def http_POST(self, request):
         p = WebStreamParser()
@@ -738,7 +696,6 @@ class CallbackResource(resource.Resource):
         d.addCallback(self.callback, request.headers)
         d.addCallback(lambda _: http.Response(responsecode.NO_CONTENT))
         return d
-
 
 
 class GatewayClient(service.Service):
@@ -753,18 +710,16 @@ class GatewayClient(service.Service):
         self.callbackHost = callbackHost or 'localhost'
         self.callbackPort = callbackPort or 8087
         root = resource.Resource()
-        root.child_callback = CallbackResource(lambda *args, **kwargs: self.callback(*args, **kwargs))
+        root.child_callback = CallbackResource(lambda *args,
+                **kwargs: self.callback(*args, **kwargs))
         self.site = server.Site(root)
-
 
     def startService(self):
         self.port = reactor.listenTCP(self.callbackPort,
                                       channel.HTTPFactory(self.site))
 
-
     def stopService(self):
         return self.port.stopListening()
-
 
     def _makeURI(self, verb, query=None):
         uriComponents = urlparse.urlparse(self.baseURI)
@@ -776,10 +731,8 @@ class GatewayClient(service.Service):
                                    ''))
         return uri
 
-
     def callback(self, data, headers):
         pass
-
 
     def ping(self):
         f = getPageWithFactory(self._makeURI(''),
@@ -787,13 +740,11 @@ class GatewayClient(service.Service):
                                agent=self.agent)
         return f.deferred
 
-
     def create(self):
         f = getPageWithFactory(self._makeURI('create'),
                     method='POST',
                     agent=self.agent)
         return f.deferred.addCallback(simplejson.loads)
-
 
     def delete(self, xmppURI, redirectURI=None):
         query = {'uri': xmppURI}
@@ -813,7 +764,6 @@ class GatewayClient(service.Service):
                     agent=self.agent)
         return f.deferred
 
-
     def publish(self, entry, xmppURI=None):
         query = xmppURI and {'uri': xmppURI}
 
@@ -824,13 +774,11 @@ class GatewayClient(service.Service):
                     agent=self.agent)
         return f.deferred.addCallback(simplejson.loads)
 
-
     def listNodes(self):
         f = getPageWithFactory(self._makeURI('list'),
                     method='GET',
                     agent=self.agent)
         return f.deferred.addCallback(simplejson.loads)
-
 
     def subscribe(self, xmppURI):
         params = {'uri': xmppURI,
@@ -843,7 +791,6 @@ class GatewayClient(service.Service):
                     agent=self.agent)
         return f.deferred
 
-
     def unsubscribe(self, xmppURI):
         params = {'uri': xmppURI,
                   'callback': 'http://%s:%s/callback' % (self.callbackHost,
@@ -855,12 +802,11 @@ class GatewayClient(service.Service):
                     agent=self.agent)
         return f.deferred
 
-
     def items(self, xmppURI, maxItems=None):
         query = {'uri': xmppURI}
         if maxItems:
-             query['max_items'] = int(maxItems)
+            query['max_items'] = int(maxItems)
         f = getPageWithFactory(self._makeURI('items', query),
-                    method='GET',
-                    agent=self.agent)
+                               method='GET',
+                               agent=self.agent)
         return f.deferred
