@@ -21,6 +21,7 @@ KEY_SEPARATOR = ':'
 
 # CouchDB data structures
 class CouchStorage:
+
     class Item(Document):
         doc_type = 'item'
         item_id = StringProperty()
@@ -47,7 +48,7 @@ class CouchStorage:
 
 
 class Storage(pgsql_storage.Storage):
-    print 'PGSQL CDB STORAGE'
+
     implements(iidavoll.IStorage)
 
     def __init__(self, dbpool, cdb):
