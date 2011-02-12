@@ -28,6 +28,7 @@ TEST_ENTRY.addElement("content", content="Some text.")
 baseURI = "http://localhost:8086/"
 componentJID = "pubsub"
 
+
 class GatewayTest(unittest.TestCase):
     timeout = 2
 
@@ -50,10 +51,8 @@ class GatewayTest(unittest.TestCase):
         d.addErrback(trapNotFound)
         return d
 
-
     def tearDown(self):
         return self.client.stopService()
-
 
     def test_create(self):
 
@@ -206,14 +205,12 @@ class GatewayTest(unittest.TestCase):
             d = self.client.publish(TEST_ENTRY, xmppURI)
             return d
 
-
         self.client.callback = onNotification
         self.client.deferred = defer.Deferred()
         d = self.client.create()
         d.addCallback(cb)
         d.addCallback(cb2)
         return defer.gatherResults([d, self.client.deferred])
-
 
     def test_subscribeTwiceGetNotification(self):
 
@@ -240,7 +237,6 @@ class GatewayTest(unittest.TestCase):
             d = self.client.publish(TEST_ENTRY, xmppURI)
             return d
 
-
         client1 = gateway.GatewayClient(baseURI, callbackPort=8088)
         client1.startService()
         client1.callback = onNotification1
@@ -257,7 +253,6 @@ class GatewayTest(unittest.TestCase):
         dl = defer.gatherResults([d, client1.deferred, client2.deferred])
         return dl
 
-
     def test_subscribeGetDelayedNotification(self):
 
         def onNotification(data, headers):
@@ -273,7 +268,6 @@ class GatewayTest(unittest.TestCase):
         def cb2(xmppURI):
             d = self.client.subscribe(xmppURI)
             return d
-
 
         self.client.callback = onNotification
         self.client.deferred = defer.Deferred()
@@ -321,14 +315,12 @@ class GatewayTest(unittest.TestCase):
         client2.callback = onNotification2
         client2.deferred = defer.Deferred()
 
-
         d = self.client.create()
         d.addCallback(cb)
         d.addCallback(cb2)
         d.addCallback(cb3)
         dl = defer.gatherResults([d, client1.deferred, client2.deferred])
         return dl
-
 
     def test_subscribeNonExisting(self):
         def cb(err):
@@ -338,7 +330,6 @@ class GatewayTest(unittest.TestCase):
         self.assertFailure(d, error.Error)
         d.addCallback(cb)
         return d
-
 
     def test_subscribeRootGetNotification(self):
 
@@ -357,14 +348,12 @@ class GatewayTest(unittest.TestCase):
         def cb2(xmppURI):
             return self.client.publish(TEST_ENTRY, xmppURI)
 
-
         self.client.callback = onNotification
         self.client.deferred = defer.Deferred()
         d = self.client.create()
         d.addCallback(cb)
         d.addCallback(cb2)
         return defer.gatherResults([d, self.client.deferred])
-
 
     def test_unsubscribeNonExisting(self):
         def cb(err):
@@ -375,7 +364,6 @@ class GatewayTest(unittest.TestCase):
         d.addCallback(cb)
         return d
 
-
     def test_items(self):
         def cb(response):
             xmppURI = response['uri']
@@ -385,7 +373,6 @@ class GatewayTest(unittest.TestCase):
         d = self.client.publish(TEST_ENTRY)
         d.addCallback(cb)
         return d
-
 
     def test_itemsMaxItems(self):
         def cb(response):
