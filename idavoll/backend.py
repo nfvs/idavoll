@@ -293,11 +293,13 @@ class BackendService(service.Service, utility.EventDispatcher):
         return True
 
 
-    def createNode(self, nodeIdentifier, requestor):
+    def createNode(self, nodeIdentifier, requestor, nodeType=None):
         if not nodeIdentifier:
             nodeIdentifier = 'generic/%s' % uuid.uuid4()
 
-        nodeType = 'leaf'
+        if not nodeType:
+            nodeType = 'leaf'
+
         config = self.storage.getDefaultConfiguration(nodeType)
         config['pubsub#node_type'] = nodeType
 
@@ -659,7 +661,8 @@ class PubSubResourceFromBackend(PubSubResource):
 
     def create(self, request):
         d = self.backend.createNode(request.nodeIdentifier,
-                                    request.sender)
+                                    request.sender,
+                                    request.nodeType)
         return d.addErrback(self._mapErrors)
 
 

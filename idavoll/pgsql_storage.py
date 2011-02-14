@@ -85,18 +85,24 @@ class Storage:
 
 
     def _createNode(self, cursor, nodeIdentifier, owner, config):
-        if config['pubsub#node_type'] != 'leaf':
-            raise error.NoCollections()
+        #if config['pubsub#node_type'] != 'leaf':
+        #    raise error.NoCollections()
 
         owner = owner.userhost()
+
+        persistItems = None
+        if 'pubsub#persist_items' in config:
+            persistItems = config['pubsub#persist_items']
+
         try:
             cursor.execute("""INSERT INTO nodes
                               (node, node_type, persist_items,
                                deliver_payloads, send_last_published_item)
                               VALUES
-                              (%s, 'leaf', %s, %s, %s)""",
+                              (%s, %s, %s, %s, %s)""",
                            (nodeIdentifier,
-                            config['pubsub#persist_items'],
+                            config['pubsub#node_type'],
+                            persistItems,
                             config['pubsub#deliver_payloads'],
                             config['pubsub#send_last_published_item'])
                            )
