@@ -105,8 +105,8 @@ class BackendService(service.Service, utility.EventDispatcher):
         return d
 
 
-    def getNodes(self):
-        return self.storage.getNodeIds()
+    def getNodes(self, collection=''):
+        return self.storage.getNodeIds(collection)
 
 
     def getNodeMetaData(self, nodeIdentifier):
@@ -618,7 +618,7 @@ class PubSubResourceFromBackend(PubSubResource):
     def getNodes(self, requestor, service, nodeIdentifier):
         if service.resource:
             return defer.succeed([])
-        d = self.backend.getNodes()
+        d = self.backend.getNodes(nodeIdentifier)  # collection=nodeIdentifier
         return d.addErrback(self._mapErrors)
 
 

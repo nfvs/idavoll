@@ -70,9 +70,11 @@ class Storage:
             return node
 
 
-
-    def getNodeIds(self):
-        d = self.dbpool.runQuery("""SELECT node from nodes""")
+    def getNodeIds(self, collection=''):
+        d = self.dbpool.runQuery("""SELECT nodes.node FROM nodes
+                INNER JOIN nodes AS n ON (nodes.collection = n.node_id)
+                WHERE n.node=%s
+                """, (collection,))
         d.addCallback(lambda results: [r[0] for r in results])
         return d
 
