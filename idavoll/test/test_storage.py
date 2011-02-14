@@ -101,6 +101,18 @@ class StorageTests:
         return d
 
 
+    def test_createCollectionNode(self):
+        def cb(void):
+            d = self.s.getNode('new 1')
+            return d
+
+        config = self.s.getDefaultConfiguration('collection')
+        config['pubsub#node_type'] = 'collection'
+        d = self.s.createNode('new 1', OWNER, config)
+        d.addCallback(cb)
+        return d
+
+
     def test_createNodeChangingConfig(self):
         """
         The configuration passed to createNode must be free to be changed.
