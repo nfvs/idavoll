@@ -493,7 +493,8 @@ class PgsqlStorageStorageTestCase(unittest.TestCase, StorageTests):
 
 
     def tearDown(self):
-        return self.dbpool.runInteraction(self.cleandb)
+        d = self.dbpool.runInteraction(self.cleandb)
+        return d.addCallback(lambda _: self.dbpool.close())
 
 
     def init(self, cursor):
@@ -578,6 +579,7 @@ class PgsqlStorageStorageTestCase(unittest.TestCase, StorageTests):
                        SUBSCRIBER_PENDING.userhost())
         cursor.execute("""DELETE FROM entities WHERE jid=%s""",
                        PUBLISHER.userhost())
+
 
 try:
     import pyPgSQL
