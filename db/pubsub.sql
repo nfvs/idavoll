@@ -8,7 +8,7 @@ CREATE TABLE nodes (
     node text NOT NULL UNIQUE,
     node_type text NOT NULL DEFAULT 'leaf'
         CHECK (node_type IN ('leaf', 'collection')),
-	collection integer DEFAULT NULL, /* parent */
+	collection integer DEFAULT 0, /* parent */
     persist_items boolean,
     deliver_payloads boolean NOT NULL DEFAULT TRUE,
     send_last_published_item text NOT NULL DEFAULT 'on_sub'
