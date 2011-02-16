@@ -19,11 +19,13 @@ class Storage:
 
     defaultConfig = {
             'leaf': {
+                "pubsub#collection": None,
                 "pubsub#persist_items": True,
                 "pubsub#deliver_payloads": True,
                 "pubsub#send_last_published_item": 'on_sub',
             },
             'collection': {
+                "pubsub#collection": None,
                 "pubsub#deliver_payloads": True,
                 "pubsub#send_last_published_item": 'on_sub',
             }
@@ -39,12 +41,14 @@ class Storage:
 
     def _getNode(self, cursor, nodeIdentifier):
         configuration = {}
-        cursor.execute("""SELECT node_type,
-                                 persist_items,
-                                 deliver_payloads,
-                                 send_last_published_item
-                          FROM nodes
-                          WHERE node=%s""",
+        cursor.execute("""SELECT n.node_type,
+                                 n.persist_items,
+                                 n.deliver_payloads,
+                                 n.send_last_published_item,
+                                 nc.node
+                          FROM nodes n
+                          INNER JOIN nodes nc ON (n.collection=nc.node_id)
+                          WHERE n.node=%s""",
                        (nodeIdentifier,))
         row = cursor.fetchone()
 
@@ -53,6 +57,8 @@ class Storage:
 
         if row.node_type == 'leaf':
             configuration = {
+                    'pubsub#node_type': 'leaf',
+                    'pubsub#collection': row.node,
                     'pubsub#persist_items': row.persist_items,
                     'pubsub#deliver_payloads': row.deliver_payloads,
                     'pubsub#send_last_published_item':
@@ -62,6 +68,8 @@ class Storage:
             return node
         elif row.node_type == 'collection':
             configuration = {
+                    'pubsub#node_type': 'collection',
+                    'pubsub#collection': row.node,
                     'pubsub#deliver_payloads': row.deliver_payloads,
                     'pubsub#send_last_published_item':
                         row.send_last_published_item}
@@ -211,14 +219,29 @@ class Node:
 
     def _setConfiguration(self, cursor, config):
         self._checkNodeExists(cursor)
-        cursor.execute("""UPDATE nodes SET persist_items=%s,
-                                           deliver_payloads=%s,
-                                           send_last_published_item=%s
-                          WHERE node=%s""",
-                       (config["pubsub#persist_items"],
-                        config["pubsub#deliver_payloads"],
-                        config["pubsub#send_last_published_item"],
-                        self.nodeIdentifier))
+        if config['pubsub#node_type'] == 'leaf':
+            cursor.execute("""UPDATE nodes SET collection=(
+                                    SELECT node_id FROM nodes WHERE node=%s),
+                                    persist_items=%s,
+                                    deliver_payloads=%s,
+                                    send_last_published_item=%s
+                                    WHERE node=%s""",
+                           (config["pubsub#collection"],
+                            config["pubsub#persist_items"],
+                            config["pubsub#deliver_payloads"],
+                            config["pubsub#send_last_published_item"],
+                            self.nodeIdentifier))
+        else:  # collection
+            cursor.execute("""UPDATE nodes SET collection=(
+                                    SELECT node_id FROM nodes WHERE node=%s),
+                                    deliver_payloads=%s,
+                                    send_last_published_item=%s
+                                    WHERE node=%s""",
+                           (config["pubsub#collection"],
+                            config["pubsub#deliver_payloads"],
+                            config["pubsub#send_last_published_item"],
+                            self.nodeIdentifier))
+
 
 
     def _setCachedConfiguration(self, void, config):

@@ -15,7 +15,7 @@ CREATE TABLE nodes (
         CHECK (send_last_published_item IN ('never', 'on_sub'))
 );
 
-INSERT INTO nodes (node_id, node, node_type) values (0, '', 'collection');
+INSERT INTO nodes (node_id, node, node_type, collection) values (0, '', 'collection', NULL);
 
 CREATE TABLE affiliations (
     affiliation_id serial PRIMARY KEY,

@@ -51,6 +51,9 @@ class BackendService(service.Service, utility.EventDispatcher):
     implements(iidavoll.IBackendService)
 
     nodeOptions = {
+            "pubsub#collection":
+                {"type": "list-single",
+                 "label": "Collection of node"},
             "pubsub#persist_items":
                 {"type": "boolean",
                  "label": "Persist items to storage"},
@@ -677,8 +680,13 @@ class PubSubResourceFromBackend(PubSubResource):
 
 
     def configureSet(self, request):
+        # convert request options from Form to dict
+        options = {}
+        for option in request.options.fields:
+            options[option] = request.options.fields[option].value
+
         d = self.backend.setNodeConfiguration(request.nodeIdentifier,
-                                              request.options,
+                                              options,
                                               request.sender)
         return d.addErrback(self._mapErrors)
 
