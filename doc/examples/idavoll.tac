@@ -21,6 +21,7 @@ config = {
 	'dbuser': 'dbuser',
 	'dbpass': 'dbpass',
 	'dbhost': '127.0.0.1',
+	'dbport': '5432',
 	'dbname': 'pubsub',
 	'cdbhost': 'couchdb_host', # - couchdb engine
 	'cdbport': 'couchdb_port', # -

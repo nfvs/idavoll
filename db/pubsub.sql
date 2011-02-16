@@ -15,7 +15,7 @@ CREATE TABLE nodes (
 /*	collection text DEFAULT NULL,
 	path ltree, */
 
-	collection integer DEFAULT NULL, /* parent */
+	collection integer DEFAULT 0, /* parent */
 /*	lft integer NOT NULL,
 	rgt integer NOT NULL, */
 
@@ -38,7 +38,7 @@ CREATE INDEX ix_nodes_id ON nodes (node_id);
 CREATE INDEX ix_nodes_parent ON nodes (collection);
 
 
-INSERT INTO nodes (node_id, node, node_type) values (0, '', 'collection');
+INSERT INTO nodes (node_id, node, node_type, collection) values (0, '', 'collection', NULL);
 
 
 CREATE TABLE affiliations (
