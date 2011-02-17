@@ -51,6 +51,9 @@ class BackendService(service.Service, utility.EventDispatcher):
     implements(iidavoll.IBackendService)
 
     nodeOptions = {
+            "pubsub#node_type":
+                {"type": "list-single",
+                 "label": "Type of the node (leaf or collection)"},
             "pubsub#collection":
                 {"type": "list-single",
                  "label": "Collection of node"},
@@ -121,6 +124,11 @@ class BackendService(service.Service, utility.EventDispatcher):
 
     def _makeMetaData(self, metaData):
         options = []
+
+        # drop node_type from metadata (wokkel doesn't expect it)
+        if 'pubsub#node_type' in metaData:
+            del metaData['pubsub#node_type']
+
         for key, value in metaData.iteritems():
             if key in self.nodeOptions:
                 option = {"var": key}
@@ -296,15 +304,21 @@ class BackendService(service.Service, utility.EventDispatcher):
         return True
 
 
-    def createNode(self, nodeIdentifier, requestor, nodeType=None):
+    def createNode(self, nodeIdentifier, requestor, options=None):
         if not nodeIdentifier:
             nodeIdentifier = 'generic/%s' % uuid.uuid4()
 
-        if not nodeType:
+        if options and 'pubsub#node_type' in options:
+            nodeType = options['pubsub#node_type']
+        else:
             nodeType = 'leaf'
 
         config = self.storage.getDefaultConfiguration(nodeType)
-        config['pubsub#node_type'] = nodeType
+
+        # merge request options with default options
+        if options:
+            for option in options:
+                config[option] = options[option]
 
         d = self.storage.createNode(nodeIdentifier, requestor, config)
         d.addCallback(lambda _: nodeIdentifier)
@@ -665,7 +679,7 @@ class PubSubResourceFromBackend(PubSubResource):
     def create(self, request):
         d = self.backend.createNode(request.nodeIdentifier,
                                     request.sender,
-                                    request.nodeType)
+                                    request.options.getValues())
         return d.addErrback(self._mapErrors)
 
 

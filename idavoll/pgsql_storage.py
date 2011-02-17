@@ -19,12 +19,14 @@ class Storage:
 
     defaultConfig = {
             'leaf': {
+                "pubsub#node_type": 'leaf',
                 "pubsub#collection": None,
                 "pubsub#persist_items": True,
                 "pubsub#deliver_payloads": True,
                 "pubsub#send_last_published_item": 'on_sub',
             },
             'collection': {
+                "pubsub#node_type": 'collection',
                 "pubsub#collection": None,
                 "pubsub#deliver_payloads": True,
                 "pubsub#send_last_published_item": 'on_sub',
@@ -98,22 +100,40 @@ class Storage:
 
         owner = owner.userhost()
 
-        persistItems = None
-        if 'pubsub#persist_items' in config:
-            persistItems = config['pubsub#persist_items']
+        if not 'pubsub#node_type' in config:
+            config['pubsub#node_type'] = 'leaf'
+
+        if not 'pubsub#persist_items' in config:
+            config['pubsub#persist_items'] = None
 
         try:
+            # check if the node has a collection, and the collection node
+            # exists; if it has no collection, set collection=0 (root node)
+            if 'pubsub#collection' in config and config['pubsub#collection']:
+                cursor.execute("""SELECT node_id FROM nodes WHERE node=%s""",
+                               (config['pubsub#collection'],))
+                row = cursor.fetchone()
+                if not row:
+                    raise error.NodeNotFound()
+
+                collection = row[0]
+
+            else:
+                collection = 0
+
             cursor.execute("""INSERT INTO nodes
-                              (node, node_type, persist_items,
+                             (node, node_type, collection, persist_items,
                                deliver_payloads, send_last_published_item)
                               VALUES
-                              (%s, %s, %s, %s, %s)""",
+                              (%s, %s, %s, %s, %s, %s)""",
                            (nodeIdentifier,
                             config['pubsub#node_type'],
-                            persistItems,
+                            collection,
+                            config['pubsub#persist_items'],
                             config['pubsub#deliver_payloads'],
                             config['pubsub#send_last_published_item'])
                            )
+
         except cursor._pool.dbapi.OperationalError:
             raise error.NodeExists()
 
@@ -219,28 +239,40 @@ class Node:
 
     def _setConfiguration(self, cursor, config):
         self._checkNodeExists(cursor)
+
         if config['pubsub#node_type'] == 'leaf':
-            cursor.execute("""UPDATE nodes SET collection=(
-                                    SELECT node_id FROM nodes WHERE node=%s),
+            cursor.execute("""UPDATE nodes SET
                                     persist_items=%s,
                                     deliver_payloads=%s,
                                     send_last_published_item=%s
                                     WHERE node=%s""",
-                           (config["pubsub#collection"],
-                            config["pubsub#persist_items"],
+                           (config["pubsub#persist_items"],
                             config["pubsub#deliver_payloads"],
                             config["pubsub#send_last_published_item"],
                             self.nodeIdentifier))
-        else:  # collection
-            cursor.execute("""UPDATE nodes SET collection=(
-                                    SELECT node_id FROM nodes WHERE node=%s),
+
+        elif config['pubsub#node_type'] == 'collection':
+            cursor.execute("""UPDATE nodes SET
                                     deliver_payloads=%s,
                                     send_last_published_item=%s
                                     WHERE node=%s""",
-                           (config["pubsub#collection"],
-                            config["pubsub#deliver_payloads"],
+                           (config["pubsub#deliver_payloads"],
                             config["pubsub#send_last_published_item"],
                             self.nodeIdentifier))
+
+        # check if there's a collection, and if it exists
+        if 'pubsub#collection' in config and config['pubsub#collection']:
+            cursor.execute("""SELECT node_id FROM nodes WHERE node=%s""",
+                           (config['pubsub#collection'],))
+            row = cursor.fetchone()
+            if not row:
+                raise error.NodeNotFound()
+
+            collection = row[0]
+
+            cursor.execute("""UPDATE nodes SET collection=%s WHERE node=%s""",
+                           (collection, self.nodeIdentifier))
+
 
 
 
