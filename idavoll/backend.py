@@ -680,13 +680,8 @@ class PubSubResourceFromBackend(PubSubResource):
 
 
     def configureSet(self, request):
-        # convert request options from Form to dict
-        options = {}
-        for option in request.options.fields:
-            options[option] = request.options.fields[option].value
-
         d = self.backend.setNodeConfiguration(request.nodeIdentifier,
-                                              options,
+                                              request.options.getValues(),
                                               request.sender)
         return d.addErrback(self._mapErrors)
 
