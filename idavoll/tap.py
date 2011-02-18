@@ -26,6 +26,9 @@ class Options(usage.Options):
         ('dbpass', None, None, 'Database password (pgsql backend)'),
         ('dbhost', None, None, 'Database host (pgsql backend)'),
         ('dbport', None, None, 'Database port (pgsql backend)'),
+        ('cdbhost', None, '127.0.0.1', 'CouchDB host (couchdb backend)'),
+        ('cdbport', None, '5984', 'CouchDB port (couchdb backend)'),
+        ('cdbname', None, 'pubsub', 'CouchDB databse name (couchdb backend'),
     ]
 
     optFlags = [
@@ -62,6 +65,39 @@ def makeService(config):
     elif config['backend'] == 'memory':
         from idavoll.memory_storage import Storage
         st = Storage()
+
+    elif config['backend'] == 'pgsql_couchdb':
+        from twisted.enterprise import adbapi
+        from idavoll.pgsql_couchdb_storage import Storage
+        from couchdbkit import Server
+        import restkit
+
+        # postgresql config
+        dbpool = adbapi.ConnectionPool('pyPgSQL.PgSQL',
+                                       user=config['dbuser'],
+                                       password=config['dbpass'],
+                                       database=config['dbname'],
+                                       host=config['dbhost'],
+                                       port=config['dbport'],
+                                       cp_reconnect=True,
+                                       client_encoding='utf-8',
+                                       )
+
+        # couchdb config
+        try:
+            server = Server('http://%s:%s/' % (config['cdbhost'],
+                                               config['cdbport']))
+            if not config['cdbname'] in server:
+                print 'CouchDB database "%s" not found.' % config['cdbname']
+                exit(-1)
+
+            couchdb = server[config['cdbname']]
+        except restkit.errors.RequestFailed as e:
+            print 'Error connecting to couchdb: %s' % e
+            exit(-1)
+
+        st = Storage(dbpool, couchdb)
+
 
     bs = BackendService(st)
     bs.setName('backend')
