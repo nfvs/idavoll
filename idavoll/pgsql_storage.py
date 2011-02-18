@@ -262,16 +262,13 @@ class Node:
 
         # check if there's a collection, and if it exists
         if 'pubsub#collection' in config and config['pubsub#collection']:
-            cursor.execute("""SELECT node_id FROM nodes WHERE node=%s""",
-                           (config['pubsub#collection'],))
-            row = cursor.fetchone()
-            if not row:
+            try:
+                cursor.execute("""UPDATE nodes SET collection=(
+                                    SELECT node_id FROM nodes WHERE node=%s)
+                                    WHERE node=%s""",
+                               (collection, self.nodeIdentifier))
+            except cursor._pool.dbapi.OperationalError:
                 raise error.NodeNotFound()
-
-            collection = row[0]
-
-            cursor.execute("""UPDATE nodes SET collection=%s WHERE node=%s""",
-                           (collection, self.nodeIdentifier))
 
 
 
@@ -431,6 +428,46 @@ class Node:
             raise error.NotSubscribed()
 
         return None
+
+
+    def setSubscriptionOptions(self, subscriber, options):
+        return self.dbpool.runInteraction(self._setSubscriptionOptions,
+                                          subscriber, options)
+
+
+    def _setSubscriptionOptions(self, cursor, subscriber, options):
+        self._checkNodeExists(cursor)
+
+        userhost = subscriber.userhost()
+        resource = subscriber.resource or ''
+
+        try:
+            sqlStr = """UPDATE subscriptions SET """
+
+            if 'pubsub#subscription_type' in options:
+                sqlStr += (" subscription_type = '%s'," %
+                          options['pubsub#subscription_type'])
+            if 'pubsub#subscription_depth' in options:
+                sqlStr += (" subscription_depth = '%s'," %
+                          options['pubsub#subscription_depth'])
+
+            # remove ','
+            if sqlStr[-1:] == ",":
+                sqlStr = sqlStr[:-1]
+
+            # WHERE
+            sqlStr += \
+                " WHERE node_id=" \
+                    "(SELECT node_id FROM nodes WHERE node='%s')" \
+                " AND entity_id=" \
+                    "(SELECT entity_id FROM entities WHERE jid='%s');" \
+                    % (self.nodeIdentifier, userhost)
+
+            cursor.execute(sqlStr)
+
+        except cursor._pool.dbapi.OperationalError:
+            raise error.Error()
+
 
 
     def isSubscribed(self, entity):

@@ -265,6 +265,30 @@ class BackendService(service.Service, utility.EventDispatcher):
         return d
 
 
+    def setOptions(self, nodeIdentifier, subscriber, options, requestor):
+        if not nodeIdentifier:
+            return defer.fail(error.NodeNotFound())
+
+        subscriberEntity = subscriber.userhostJID()
+        if subscriberEntity != requestor.userhostJID():
+            return defer.fail(error.Forbidden())
+
+        d = self.storage.getNode(nodeIdentifier)
+        d.addCallback(_getAffiliation, subscriberEntity)
+        d.addCallback(self._doSetOptions, subscriber, options)
+        return d
+
+
+    def _doSetOptions(self, result, subscriber, options):
+        node, affiliation = result
+
+        if affiliation == 'outcast':
+            raise error.Forbidden()
+
+        d = node.setSubscriptionOptions(subscriber, options)
+        return d
+
+
     def _sendLastPublished(self, subscription, node):
 
         def notifyItem(items):
@@ -663,6 +687,14 @@ class PubSubResourceFromBackend(PubSubResource):
         d = self.backend.unsubscribe(request.nodeIdentifier,
                                      request.subscriber,
                                      request.sender)
+        return d.addErrback(self._mapErrors)
+
+
+    def optionsSet(self, request):
+        d = self.backend.setOptions(request.nodeIdentifier,
+                                    request.subscriber,
+                                    request.options.getValues(),
+                                    request.sender)
         return d.addErrback(self._mapErrors)
 
 

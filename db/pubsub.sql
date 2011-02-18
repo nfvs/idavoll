@@ -8,14 +8,14 @@ CREATE TABLE nodes (
     node text NOT NULL UNIQUE,
     node_type text NOT NULL DEFAULT 'leaf'
         CHECK (node_type IN ('leaf', 'collection')),
-	collection integer DEFAULT 0, /* parent */
+	collection integer NOT NULL DEFAULT 0, /* parent */
     persist_items boolean,
     deliver_payloads boolean NOT NULL DEFAULT TRUE,
     send_last_published_item text NOT NULL DEFAULT 'on_sub'
         CHECK (send_last_published_item IN ('never', 'on_sub'))
 );
 
-INSERT INTO nodes (node_id, node, node_type, collection) values (0, '', 'collection', NULL);
+INSERT INTO nodes (node_id, node, node_type, collection) values (0, '', 'collection', -1);
 
 CREATE TABLE affiliations (
     affiliation_id serial PRIMARY KEY,

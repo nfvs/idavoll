@@ -123,6 +123,20 @@ class IBackendService(Interface):
         """
 
 
+    def setOptions(nodeIdentifier, subscriber, options, requestor):
+        """ Sets configuration options for a subscription
+
+        @param nodeIdentifier: The identifier of the node of the subscription
+        @type nodeIdentifier: C{unicode}
+        @param subscriber: The subscriber of the node
+        @type subscriber: C{unicode}
+        @param options: The subscription options
+        @type options: C{dict}
+        @param request: The requestor
+        @type request: C{unicode}
+        """
+
+
     def getSubscribers(nodeIdentifier):
         """ Get node subscriber list.
 
@@ -428,6 +442,18 @@ class INode(Interface):
         @param subscriber: JID of the subscriptions' entity.
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @return: deferred that fires on removal.
+        """
+
+
+    def setSubscriptionOptions(subscriber, config):
+        """
+        Changes an existing subscription's options
+
+        @param subscriber: JID of the new subscriptions' entity.
+        @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @param config: Subscription configuration.
+        @param config: C{dict}
+        @return: deferred that fires on subscription configuration.
         """
 
 
