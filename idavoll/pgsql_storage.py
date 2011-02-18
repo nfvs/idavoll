@@ -269,7 +269,7 @@ class Storage:
                           options['pubsub#subscription_type'])
             if 'pubsub#subscription_depth' in options:
                 sqlStr += (" subscription_depth = '%s'," %
-                          options['pubsub#subscription_type'])
+                          options['pubsub#subscription_depth'])
 
             # remove ','
             if sqlStr[-1:] == ",":
