@@ -165,6 +165,18 @@ class Node:
         return defer.succeed(None)
 
 
+    def setSubscriptionOptions(self, subscriber, options):
+        try:
+            sub = self._subscriptions[subscriber.full()]
+
+            for option in options:
+                sub[option] = options[option]
+        except KeyError:
+            return defer.fail(error.NotSubscribed())
+
+        return defer.succeed(None)
+
+
     def isSubscribed(self, entity):
         for subscriber, subscription in self._subscriptions.iteritems():
             if jid.internJID(subscriber).userhost() == entity.userhost() and \

@@ -451,7 +451,7 @@ class Node:
                 sqlStr += (" subscription_depth = '%s'," %
                           options['pubsub#subscription_depth'])
 
-            # remove ','
+            # remove trailing ','
             if sqlStr[-1:] == ",":
                 sqlStr = sqlStr[:-1]
 
@@ -467,7 +467,6 @@ class Node:
 
         except cursor._pool.dbapi.OperationalError:
             raise error.Error()
-
 
 
     def isSubscribed(self, entity):
