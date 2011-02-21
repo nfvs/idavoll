@@ -3,6 +3,8 @@
 
 import copy
 
+from string import Template
+
 from zope.interface import implements
 
 from twisted.enterprise import adbapi
@@ -12,6 +14,31 @@ from wokkel.generic import parseXml, stripNamespace
 from wokkel.pubsub import Subscription
 
 from idavoll import error, iidavoll
+
+
+"""
+Get All Ancestors
+http://explainextended.com/2009/09/24/adjacency-list-vs-nested-sets-postgresql/
+"""
+sql_get_all_parent_nodes = Template(
+"""WITH RECURSIVE
+ q AS
+ (
+ SELECT  n.node, n.collection, 1 AS level
+ FROM    nodes n
+ WHERE   node = '$node'
+ UNION ALL
+ SELECT  np.node, np.collection, level + 1
+ FROM    q
+ JOIN    nodes np
+ ON      np.node_id = q.collection
+ )
+SELECT  node
+FROM    q
+ORDER BY
+        level DESC
+""")
+
 
 class Storage:
 
@@ -329,38 +356,70 @@ class Node:
     def getSubscriptions(self, state=None):
         return self.dbpool.runInteraction(self._getSubscriptions, state)
 
-
+# FIXME
     def _getSubscriptions(self, cursor, state):
         self._checkNodeExists(cursor)
 
-        query = """SELECT jid, resource, state,
-                          subscription_type, subscription_depth
-                   FROM subscriptions
-                   NATURAL JOIN nodes
-                   NATURAL JOIN entities
-                   WHERE node=%s""";
-        values = [self.nodeIdentifier]
+        config = self.getConfiguration()
+        collection = config['pubsub#collection']
 
-        if state:
-            query += " AND state=%s"
-            values.append(state)
+        # belongs to a collection node,
+        # get subscriptions for current node and all parent nodes
+        if collection and collection > 0:
+            # fetch all nodes, current + ancestors
+            # sql is in the beggining of the file
+            query = sql_get_all_parent_nodes.substitute(
+                    node=self.nodeIdentifier)
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            nodes = [n[0] for n in rows if n[0] != '']
 
-        cursor.execute(query, values);
-        rows = cursor.fetchall()
+            # fetch all subscriptions for the nodes
+            nodesStr = ''.join(["'" + n + "'," for n in nodes])
+            nodesStr = nodesStr[:-1]
+            # uses MIN / GROUP_BY to return only unique JIDs
+            query = """SELECT e.jid, MIN(s.resource), MIN(s.state),
+                              MIN(s.subscription_type),
+                              MIN(s.subscription_depth)
+                       FROM subscriptions s
+                       NATURAL JOIN nodes n
+                       NATURAL JOIN entities e
+                       WHERE n.node IN (%s)
+                       GROUP BY e.jid""" % nodesStr
+            cursor.execute(query)
+            rows = cursor.fetchall()
 
+        # no collection, get only subscriptions for the node
+        else:
+            query = """SELECT jid, resource, state,
+                              subscription_type, subscription_depth
+                       FROM subscriptions
+                       NATURAL JOIN nodes
+                       NATURAL JOIN entities
+                       WHERE node=%s"""
+
+            values = [self.nodeIdentifier]
+
+            if state:
+                query += " AND state=%s"
+                values.append(state)
+
+            cursor.execute(query, values)
+            rows = cursor.fetchall()
+
+        # fill subscriptions
         subscriptions = []
         for row in rows:
-            subscriber = jid.JID('%s/%s' % (row.jid, row.resource))
+            subscriber = jid.JID('%s/%s' % (row[0], row[1]))
 
             options = {}
-            if row.subscription_type:
-                options['pubsub#subscription_type'] = row.subscription_type;
-            if row.subscription_depth:
-                options['pubsub#subscription_depth'] = row.subscription_depth;
+            if row[3]:
+                options['pubsub#subscription_type'] = row[3]
+            if row[4]:
+                options['pubsub#subscription_depth'] = row[4]
 
             subscriptions.append(Subscription(self.nodeIdentifier, subscriber,
-                                              row.state, options))
-
+                                              row[2], options))
         return subscriptions
 
 
