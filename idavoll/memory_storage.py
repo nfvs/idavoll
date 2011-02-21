@@ -16,11 +16,15 @@ class Storage:
 
     defaultConfig = {
             'leaf': {
+                "pubsub#node_type": 'leaf',
+                "pubsub#collection": None,
                 "pubsub#persist_items": True,
                 "pubsub#deliver_payloads": True,
                 "pubsub#send_last_published_item": 'on_sub',
             },
             'collection': {
+                "pubsub#node_type": 'collection',
+                "pubsub#collection": None,
                 "pubsub#deliver_payloads": True,
                 "pubsub#send_last_published_item": 'on_sub',
             }
@@ -41,7 +45,7 @@ class Storage:
         return defer.succeed(node)
 
 
-    def getNodeIds(self):
+    def getNodeIds(self, collection=None):
         return defer.succeed(self._nodes.keys())
 
 
@@ -49,10 +53,11 @@ class Storage:
         if nodeIdentifier in self._nodes:
             return defer.fail(error.NodeExists())
 
-        if config['pubsub#node_type'] != 'leaf':
-            raise error.NoCollections()
+        if config['pubsub#node_type'] == 'leaf':
+            node = LeafNode(nodeIdentifier, owner, config)
+        elif config['pubsub#node_type'] == 'collection':
+            node = CollectionNode(nodeIdentifier, owner, config)
 
-        node = LeafNode(nodeIdentifier, owner, config)
         self._nodes[nodeIdentifier] = node
 
         return defer.succeed(None)
@@ -86,9 +91,6 @@ class Storage:
 
 
     def getDefaultConfiguration(self, nodeType):
-        if nodeType == 'collection':
-            raise error.NoCollections()
-
         return self.defaultConfig[nodeType]
 
 
