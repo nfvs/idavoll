@@ -102,13 +102,30 @@ class StorageTests:
 
 
     def test_createCollectionNode(self):
-        def cb(void):
-            d = self.s.getNode('new 1')
+        """
+        A collection node 'new 1' is added, and a leaf node 'new 2' is added to
+        the 'new 1' collection. It is then tested if 'new 2' is a child node of
+        the 'new 1' collection.
+        """
+        def addChildNode(void):
+            config = self.s.getDefaultConfiguration('collection')
+            config['pubsub#node_type'] = 'leaf'
+            config['pubsub#collection'] = 'new 1'
+            d = self.s.createNode('new 2', OWNER, config)
             return d
+
+        def getChildNodes(void):
+            d = self.s.getNodeIds('new 1')
+            return d
+
+        def cb(nodeIdentifiers):
+            self.assertIn('new 2', nodeIdentifiers)
 
         config = self.s.getDefaultConfiguration('collection')
         config['pubsub#node_type'] = 'collection'
         d = self.s.createNode('new 1', OWNER, config)
+        d.addCallback(addChildNode)
+        d.addCallback(getChildNodes)
         d.addCallback(cb)
         return d
 
@@ -519,6 +536,20 @@ class PgsqlStorageStorageTestCase(unittest.TestCase, StorageTests):
         cursor.execute("""INSERT INTO nodes (node) VALUES ('to-be-purged')""")
         cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
                        OWNER.userhost())
+
+        # root / child collection nodes
+        cursor.execute("""INSERT INTO nodes (node, node_type)
+                          VALUES('col-node', 'collection')""")
+        cursor.execute("""INSERT INTO nodes (node, node_type)
+                          VALUES('leaf-node', 'leaf')""")
+        cursor.execute("""INSERT INTO affiliations
+                          (node_id, entity_id, affiliation)
+                          SELECT node_id, entity_id, 'owner'
+                          FROM nodes, entities
+                          WHERE (node='col-node' OR node='leaf-node') AND
+                                jid=%s""",
+                       OWNER.userhost())
+
         cursor.execute("""INSERT INTO affiliations
                           (node_id, entity_id, affiliation)
                           SELECT node_id, entity_id, 'owner'
@@ -580,7 +611,7 @@ class PgsqlStorageStorageTestCase(unittest.TestCase, StorageTests):
         cursor.execute("""DELETE FROM nodes WHERE node in
                           ('non-existing', 'pre-existing', 'to-be-deleted',
                            'new 1', 'new 2', 'new 3', 'to-be-reconfigured',
-                           'to-be-purged')""")
+                           'to-be-purged', 'col-node', 'leaf-node')""")
         cursor.execute("""DELETE FROM entities WHERE jid=%s""",
                        OWNER.userhost())
         cursor.execute("""DELETE FROM entities WHERE jid=%s""",
