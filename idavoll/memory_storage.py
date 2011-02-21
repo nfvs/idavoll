@@ -46,12 +46,34 @@ class Storage:
 
 
     def getNodeIds(self, collection=None):
-        return defer.succeed(self._nodes.keys())
+        #return defer.succeed(self._nodes.keys())
+        print self._nodes
+        nodes = [k for k,v in self._nodes.iteritems() if (
+                # root nodes
+                (not collection and (not v._config or
+                                   'pubsub#collection' not in v._config or
+                                   not v._config['pubsub#collection']
+                                   ))
+                or
+                # with collection
+                (collection and (v._config and 'pubsub#collection' in v._config
+                               and collection==v._config['pubsub#collection']))
+            )]
+        return defer.succeed(nodes)
 
 
     def createNode(self, nodeIdentifier, owner, config):
         if nodeIdentifier in self._nodes:
             return defer.fail(error.NodeExists())
+
+        # check if collection node exists
+        colNode = None
+        if 'pubsub#collection' in config and config['pubsub#collection']:
+            collection = config['pubsub#collection']
+            try:
+                colNode = self._nodes[collection]
+            except KeyError:
+                return defer.fail(error.NodeNotFound())
 
         if config['pubsub#node_type'] == 'leaf':
             node = LeafNode(nodeIdentifier, owner, config)
@@ -59,6 +81,10 @@ class Storage:
             node = CollectionNode(nodeIdentifier, owner, config)
 
         self._nodes[nodeIdentifier] = node
+
+        # add new node to collection's child nodes list
+        if colNode:
+            colNode.childNodes.append(nodeIdentifier)
 
         return defer.succeed(None)
 
@@ -102,7 +128,10 @@ class Node:
         self.nodeIdentifier = nodeIdentifier
         self._affiliations = {owner.userhost(): 'owner'}
         self._subscriptions = {}
-        self._config = copy.copy(config)
+        if config:
+            self._config = copy.copy(config)
+        else:
+            self._config = {}
 
 
     def getType(self):
@@ -284,6 +313,7 @@ class LeafNode(Node):
 class CollectionNode(Node):
     nodeType = 'collection'
 
+    childNodes = []
 
 
 class GatewayStorage(object):

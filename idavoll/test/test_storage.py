@@ -120,6 +120,7 @@ class StorageTests:
 
         def cb(nodeIdentifiers):
             self.assertIn('new 2', nodeIdentifiers)
+            self.assertNotIn('new 1', nodeIdentifiers)
 
         config = self.s.getDefaultConfiguration('collection')
         config['pubsub#node_type'] = 'collection'
