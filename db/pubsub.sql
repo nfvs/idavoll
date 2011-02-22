@@ -33,9 +33,9 @@ CREATE TABLE subscriptions (
     node_id integer NOT NULL REFERENCES nodes ON delete CASCADE,
     state text NOT NULL DEFAULT 'subscribed'
     	CHECK (state IN ('subscribed', 'pending', 'unconfigured')),
-    subscription_type text
+    subscription_type text DEFAULT NULL
     	CHECK (subscription_type IN (NULL, 'items', 'nodes')),
-    subscription_depth text
+    subscription_depth text DEFAULT NULL
     	CHECK (subscription_depth IN (NULL, '1', 'all')),
     UNIQUE (entity_id, resource, node_id));
 

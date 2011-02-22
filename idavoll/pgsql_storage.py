@@ -437,6 +437,13 @@ class Node:
         subscription_type = config.get('pubsub#subscription_type')
         subscription_depth = config.get('pubsub#subscription_depth')
 
+        if subscription_type == '':
+            subscription_type = None
+        if subscription_depth == '':
+            subscription_depth = None
+
+
+
         try:
             cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
                            (userhost))
@@ -503,10 +510,12 @@ class Node:
         try:
             sqlStr = """UPDATE subscriptions SET """
 
-            if 'pubsub#subscription_type' in options:
+            if ('pubsub#subscription_type' in options and
+                options['pubsub#subscription_type']):
                 sqlStr += (" subscription_type = '%s'," %
                           options['pubsub#subscription_type'])
-            if 'pubsub#subscription_depth' in options:
+            if ('pubsub#subscription_depth' in options and
+                options['pubsub#subscription_depth']):
                 sqlStr += (" subscription_depth = '%s'," %
                           options['pubsub#subscription_depth'])
 
