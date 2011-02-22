@@ -339,14 +339,19 @@ class Node:
         userhost = subscriber.userhost()
         resource = subscriber.resource
 
-        cursor.execute("""SELECT state FROM subscriptions
-                          NATURAL JOIN nodes
-                          NATURAL JOIN entities
-                          WHERE node=%s AND jid=%s AND resource=%s""",
-                       (self.nodeIdentifier,
-                        userhost,
-                        resource))
+        sqlStr = """SELECT state FROM subscriptions
+                    NATURAL JOIN nodes
+                    NATURAL JOIN entities
+                    WHERE node='%s' AND jid='%s'""" % (
+                        self.nodeIdentifier,
+                        userhost)
+
+        if resource:
+            sqlStr += """ AND resource=%s""" % resource
+
+        cursor.execute(sqlStr)
         row = cursor.fetchone()
+
         if not row:
             return None
         else:
