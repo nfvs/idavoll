@@ -320,8 +320,13 @@ class BackendService(service.Service, utility.EventDispatcher):
         return d
 
 
-    def getSubscriptions(self, entity):
-        return self.storage.getSubscriptions(entity)
+    def getSubscriptions(self, entity, nodeIdentifier=None):
+        if nodeIdentifier:
+            d = self.storage.getNode(nodeIdentifier)
+            d.addCallback(lambda node: node.getSubscriptions())
+            return d
+        else:
+            return self.storage.getSubscriptions(entity)
 
 
     def supportsInstantNodes(self):
@@ -699,7 +704,8 @@ class PubSubResourceFromBackend(PubSubResource):
 
 
     def subscriptions(self, request):
-        d = self.backend.getSubscriptions(request.sender)
+        d = self.backend.getSubscriptions(request.sender,
+                                          request.nodeIdentifier)
         return d.addErrback(self._mapErrors)
 
 

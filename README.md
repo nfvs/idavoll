@@ -7,6 +7,7 @@ View README for more information.
 
 * Support for [XEP-0248](http://xmpp.org/extensions/xep-0248.html) (PubSub Collection Nodes)
 * Support for [XEP-0030](http://xmpp.org/extensions/xep-0030.html) (Service Discovery)
+* Retrieving all subscriptions for a given node
 * Modifying node configuration
 * Modifying subscription options
 * PostgreSQL+CouchDB hybrid storage engine (stores Items in CouchDB, and everything else in PostreSQL)
