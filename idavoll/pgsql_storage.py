@@ -337,7 +337,7 @@ class Node:
         self._checkNodeExists(cursor)
 
         userhost = subscriber.userhost()
-        resource = subscriber.resource or ''
+        resource = subscriber.resource
 
         cursor.execute("""SELECT state FROM subscriptions
                           NATURAL JOIN nodes
@@ -432,7 +432,7 @@ class Node:
         self._checkNodeExists(cursor)
 
         userhost = subscriber.userhost()
-        resource = subscriber.resource or ''
+        resource = subscriber.resource
 
         subscription_type = config.get('pubsub#subscription_type')
         subscription_depth = config.get('pubsub#subscription_depth')
@@ -479,7 +479,7 @@ class Node:
         self._checkNodeExists(cursor)
 
         userhost = subscriber.userhost()
-        resource = subscriber.resource or ''
+        resource = subscriber.resource
 
         cursor.execute("""DELETE FROM subscriptions WHERE
                           node_id=(SELECT node_id FROM nodes
@@ -505,7 +505,7 @@ class Node:
         self._checkNodeExists(cursor)
 
         userhost = subscriber.userhost()
-        resource = subscriber.resource or ''
+        resource = subscriber.resource
 
         try:
             sqlStr = """UPDATE subscriptions SET """
