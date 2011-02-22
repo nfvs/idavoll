@@ -29,7 +29,7 @@ CREATE TABLE affiliations (
 CREATE TABLE subscriptions (
     subscription_id serial PRIMARY KEY,
     entity_id integer NOT NULL REFERENCES entities ON DELETE CASCADE,
-    resource text,
+    resource text NOT NULL DEFAULT '',
     node_id integer NOT NULL REFERENCES nodes ON delete CASCADE,
     state text NOT NULL DEFAULT 'subscribed'
     	CHECK (state IN ('subscribed', 'pending', 'unconfigured')),

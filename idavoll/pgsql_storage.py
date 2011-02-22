@@ -439,15 +439,8 @@ class Node:
         userhost = subscriber.userhost()
         resource = subscriber.resource
 
-        subscription_type = config.get('pubsub#subscription_type')
-        subscription_depth = config.get('pubsub#subscription_depth')
-
-        if subscription_type == '':
-            subscription_type = None
-        if subscription_depth == '':
-            subscription_depth = None
-
-
+        subscription_type = config.get('pubsub#subscription_type') or ''
+        subscription_depth = config.get('pubsub#subscription_depth') or ''
 
         try:
             cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
