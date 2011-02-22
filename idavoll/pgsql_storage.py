@@ -347,7 +347,7 @@ class Node:
                         userhost)
 
         if resource:
-            sqlStr += """ AND resource=%s""" % resource
+            sqlStr += """ AND resource='%s'""" % resource
 
         cursor.execute(sqlStr)
         row = cursor.fetchone()
@@ -437,7 +437,7 @@ class Node:
         self._checkNodeExists(cursor)
 
         userhost = subscriber.userhost()
-        resource = subscriber.resource
+        resource = subscriber.resource or ''
 
         subscription_type = config.get('pubsub#subscription_type') or ''
         subscription_depth = config.get('pubsub#subscription_depth') or ''
