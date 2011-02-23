@@ -439,8 +439,8 @@ class Node:
         userhost = subscriber.userhost()
         resource = subscriber.resource or ''
 
-        subscription_type = config.get('pubsub#subscription_type') or ''
-        subscription_depth = config.get('pubsub#subscription_depth') or ''
+        subscription_type = config.get('pubsub#subscription_type')
+        subscription_depth = config.get('pubsub#subscription_depth')
 
         try:
             cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
@@ -503,7 +503,7 @@ class Node:
         self._checkNodeExists(cursor)
 
         userhost = subscriber.userhost()
-        resource = subscriber.resource
+        resource = subscriber.resource or ''
 
         try:
             sqlStr = """UPDATE subscriptions SET """
