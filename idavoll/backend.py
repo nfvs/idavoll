@@ -321,9 +321,16 @@ class BackendService(service.Service, utility.EventDispatcher):
 
 
     def getSubscriptions(self, entity, nodeIdentifier=None):
+        def returnSubscription(subscription):
+            if subscription:
+                return subscription
+            else:
+                return []
+
         if nodeIdentifier:
             d = self.storage.getNode(nodeIdentifier)
-            d.addCallback(lambda node: node.getSubscriptions())
+            d.addCallback(lambda node: node.getSubscription(entity))
+            d.adCallback(returnSubscription)
             return d
         else:
             return self.storage.getSubscriptions(entity)
