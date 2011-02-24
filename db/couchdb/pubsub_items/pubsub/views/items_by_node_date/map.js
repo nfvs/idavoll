@@ -1,4 +1,4 @@
 function(doc)
 {
-	emit([doc.node, doc.date], doc);
+	emit([doc.node, doc.date], null);
 }

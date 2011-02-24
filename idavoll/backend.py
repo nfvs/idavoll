@@ -330,7 +330,7 @@ class BackendService(service.Service, utility.EventDispatcher):
         if nodeIdentifier:
             d = self.storage.getNode(nodeIdentifier)
             d.addCallback(lambda node: node.getSubscription(entity))
-            d.adCallback(returnSubscription)
+            d.addCallback(returnSubscription)
             return d
         else:
             return self.storage.getSubscriptions(entity)

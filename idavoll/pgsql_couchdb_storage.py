@@ -136,7 +136,8 @@ class LeafNode(pgsql_storage.LeafNode):
                 startkey=[self.nodeIdentifier, {}],
                 endkey=[self.nodeIdentifier],
                 descending=True,
-                limit=maxItems
+                limit=maxItems,
+                include_docs=True
                 )
         else:
             items = CouchStorage.Item.view(
@@ -144,10 +145,9 @@ class LeafNode(pgsql_storage.LeafNode):
                 startkey=[self.nodeIdentifier, {}],
                 endkey=[self.nodeIdentifier],
                 descending=True,
+                include_docs=True
                 )
 
-        #print 'items: %s' % items
-        #elements = [parseXml(i.data.encode('utf-8')) for i in items]
         s = DictSerializer()
         elements = [s.serialize_to_xml(i.data) for i in items]
         return elements
@@ -162,7 +162,8 @@ class LeafNode(pgsql_storage.LeafNode):
 
         items = CouchStorage.Item.view(
             'pubsub/items_by_node_item',
-            keys=keys
+            keys=keys,
+            include_docs=True
         )
 
         #values = [parseXml(i.data.encode('utf-8')) for i in items.all()]
