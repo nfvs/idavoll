@@ -383,14 +383,14 @@ class Node:
             nodesStr = ''.join(["'" + n + "'," for n in nodes])
             nodesStr = nodesStr[:-1]
             # uses MIN / GROUP_BY to return only unique JIDs
-            query = """SELECT e.jid, MIN(s.resource), MIN(s.state),
+            query = """SELECT e.jid, s.resource, MIN(s.state),
                               MIN(s.subscription_type),
                               MIN(s.subscription_depth)
                        FROM subscriptions s
                        NATURAL JOIN nodes n
                        NATURAL JOIN entities e
                        WHERE n.node IN (%s)
-                       GROUP BY e.jid""" % nodesStr
+                       GROUP BY e.jid, s.resource""" % nodesStr
             cursor.execute(query)
             rows = cursor.fetchall()
 
@@ -439,8 +439,10 @@ class Node:
         userhost = subscriber.userhost()
         resource = subscriber.resource or ''
 
-        subscription_type = config.get('pubsub#subscription_type')
-        subscription_depth = config.get('pubsub#subscription_depth')
+        subscription_type = (config.get('pubsub#subscription_type') or
+                'nodes')
+        subscription_depth = (config.get('pubsub#subscription_depth') or
+                '1')
 
         try:
             cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
