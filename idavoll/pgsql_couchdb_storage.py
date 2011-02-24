@@ -27,7 +27,7 @@ class CouchStorage:
         item_id = StringProperty()
         node = StringProperty()
         publisher = StringProperty()
-        content = DictProperty()
+        data = DictProperty()
         date = DateTimeProperty()
 
         def save(self):
