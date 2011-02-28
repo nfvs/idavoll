@@ -722,9 +722,12 @@ class PubSubResourceFromBackend(PubSubResource):
 
 
     def create(self, request):
+        options = None
+        if request.options:
+            options = request.options.getValues()
         d = self.backend.createNode(request.nodeIdentifier,
                                     request.sender,
-                                    request.options.getValues())
+                                    options)
         return d.addErrback(self._mapErrors)
 
 

@@ -186,11 +186,19 @@ class Storage:
 
 
     def _deleteNode(self, cursor, nodeIdentifier):
-        cursor.execute("""DELETE FROM nodes WHERE node=%s""",
+        cursor.execute("""SELECT node_id FROM nodes WHERE node=%s""",
                        (nodeIdentifier,))
 
-        if cursor.rowcount != 1:
+        rows = cursor.fetchone()
+        if not rows:
             raise error.NodeNotFound()
+
+        cursor.execute("""DELETE FROM nodes WHERE node_id=%s""",
+                       (rows[0],))
+
+        # update orphaned nodes
+        cursor.execute("""UPDATE nodes SET collection=0 WHERE collection=%s""",
+                       (rows[0],))
 
 
     def getAffiliations(self, entity):
@@ -337,21 +345,16 @@ class Node:
         self._checkNodeExists(cursor)
 
         userhost = subscriber.userhost()
-        resource = subscriber.resource
+        resource = subscriber.resource or ''
 
-        sqlStr = """SELECT state FROM subscriptions
-                    NATURAL JOIN nodes
-                    NATURAL JOIN entities
-                    WHERE node='%s' AND jid='%s'""" % (
-                        self.nodeIdentifier,
-                        userhost)
-
-        if resource:
-            sqlStr += """ AND resource='%s'""" % resource
-
-        cursor.execute(sqlStr)
+        cursor.execute("""SELECT state FROM subscriptions
+                          NATURAL JOIN nodes
+                          NATURAL JOIN entities
+                          WHERE node=%s AND jid=%s AND resource=%s""",
+                       (self.nodeIdentifier,
+                        userhost,
+                        resource))
         row = cursor.fetchone()
-
         if not row:
             return None
         else:
