@@ -442,10 +442,14 @@ class Node:
         userhost = subscriber.userhost()
         resource = subscriber.resource or ''
 
-        subscription_type = (config.get('pubsub#subscription_type') or
+        if self.nodeType == 'collection' and config:
+            subscription_type = (config.get('pubsub#subscription_type') or
                 'nodes')
-        subscription_depth = (config.get('pubsub#subscription_depth') or
+            subscription_depth = (config.get('pubsub#subscription_depth') or
                 '1')
+        else:
+            subscription_type = None
+            subscription_depth = None
 
         try:
             cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
@@ -482,7 +486,7 @@ class Node:
         self._checkNodeExists(cursor)
 
         userhost = subscriber.userhost()
-        resource = subscriber.resource
+        resource = subscriber.resource or ''
 
         cursor.execute("""DELETE FROM subscriptions WHERE
                           node_id=(SELECT node_id FROM nodes

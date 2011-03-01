@@ -232,18 +232,18 @@ class BackendService(service.Service, utility.EventDispatcher):
         self.addObserver('//event/pubsub/notify', observerfn, *args, **kwargs)
 
 
-    def subscribe(self, nodeIdentifier, subscriber, requestor):
+    def subscribe(self, nodeIdentifier, subscriber, requestor, options=None):
         subscriberEntity = subscriber.userhostJID()
         if subscriberEntity != requestor.userhostJID():
             return defer.fail(error.Forbidden())
 
         d = self.storage.getNode(nodeIdentifier)
         d.addCallback(_getAffiliation, subscriberEntity)
-        d.addCallback(self._doSubscribe, subscriber)
+        d.addCallback(self._doSubscribe, subscriber, options)
         return d
 
 
-    def _doSubscribe(self, result, subscriber):
+    def _doSubscribe(self, result, subscriber, options=None):
         node, affiliation = result
 
         if affiliation == 'outcast':
@@ -259,7 +259,7 @@ class BackendService(service.Service, utility.EventDispatcher):
                 d.addCallback(self._sendLastPublished, node)
             return d
 
-        d = node.addSubscription(subscriber, 'subscribed', {})
+        d = node.addSubscription(subscriber, 'subscribed', options)
         d.addCallbacks(lambda _: True, trapExists)
         d.addCallback(cb)
         return d
@@ -689,9 +689,13 @@ class PubSubResourceFromBackend(PubSubResource):
 
 
     def subscribe(self, request):
+        options = None
+        if request.options:
+            options = request.options.getValues()
         d = self.backend.subscribe(request.nodeIdentifier,
                                    request.subscriber,
-                                   request.sender)
+                                   request.sender,
+                                   options)
         return d.addErrback(self._mapErrors)
 
 
