@@ -323,7 +323,7 @@ class BackendService(service.Service, utility.EventDispatcher):
     def getSubscriptions(self, entity, nodeIdentifier=None):
         def returnSubscription(subscription):
             if subscription:
-                return subscription
+                return [subscription]
             else:
                 return []
 
