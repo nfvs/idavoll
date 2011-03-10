@@ -5,7 +5,7 @@ from zope.interface import implements
 from twisted.internet import threads
 
 from idavoll import error, iidavoll
-from idavoll import pgsql_storage, couchdb_storage
+from idavoll import pgsql_storage
 
 from couchdbkit import *
 
