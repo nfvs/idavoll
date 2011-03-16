@@ -399,7 +399,7 @@ class BackendService(service.Service, utility.EventDispatcher):
         return self.storage.getAffiliations(entity)
 
 
-    def getItems(self, nodeIdentifier, requestor, maxItems=None,
+    def getItems(self, nodeIdentifier, requestor, maxItems=1,
                        itemIdentifiers=None):
         d = self.storage.getNode(nodeIdentifier)
         d.addCallback(_getAffiliation, requestor)

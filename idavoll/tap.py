@@ -11,6 +11,7 @@ from wokkel.generic import FallbackHandler, VersionHandler
 from wokkel.iwokkel import IPubSubResource
 from wokkel.pubsub import PubSubService
 
+
 from idavoll import __version__
 from idavoll.backend import BackendService
 
@@ -71,6 +72,7 @@ def makeService(config):
         from idavoll.pgsql_couchdb_storage import Storage
         from couchdbkit import Server
         import restkit
+        from restkit import Resource, Manager
 
         # postgresql config
         dbpool = adbapi.ConnectionPool('pyPgSQL.PgSQL',
@@ -85,8 +87,10 @@ def makeService(config):
 
         # couchdb config
         try:
+            manager = Manager(max_conn=5)
             server = Server('http://%s:%s/' % (config['cdbhost'],
-                                               config['cdbport']))
+                                               config['cdbport']),
+                                               manager=manager)
             if not config['cdbname'] in server:
                 print 'CouchDB database "%s" not found.' % config['cdbname']
                 exit(-1)
