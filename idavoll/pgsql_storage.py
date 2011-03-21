@@ -9,6 +9,7 @@ from zope.interface import implements
 
 from twisted.enterprise import adbapi
 from twisted.words.protocols.jabber import jid
+from twisted.python import log
 
 from wokkel.generic import parseXml, stripNamespace
 from wokkel.pubsub import Subscription
@@ -122,9 +123,6 @@ class Storage:
 
 
     def _createNode(self, cursor, nodeIdentifier, owner, config):
-        #if config['pubsub#node_type'] != 'leaf':
-        #    raise error.NoCollections()
-
         owner = owner.userhost()
 
         if not 'pubsub#node_type' in config:
@@ -141,6 +139,9 @@ class Storage:
                                (config['pubsub#collection'],))
                 row = cursor.fetchone()
                 if not row:
+                    log.msg('Error creating node "%s"' % nodeIdentifier)
+                    log.msg('  - Collection node %s not found.' %
+                          config['pubsub#collection'])
                     raise error.NodeNotFound()
 
                 collection = row[0]
@@ -161,7 +162,9 @@ class Storage:
                             config['pubsub#send_last_published_item'])
                            )
 
-        except cursor._pool.dbapi.OperationalError:
+        except cursor._pool.dbapi.OperationalError as e:
+            log.msg('Error creating node "%s":' % nodeIdentifier)
+            log.msg('  - %s' % e.args[0])
             raise error.NodeExists()
 
         cursor.execute("""SELECT 1 from entities where jid=%s""",

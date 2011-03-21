@@ -25,6 +25,7 @@ config = {
     'dbname': 'pubsub',
     'cdbhost': 'couchdb_host', # - couchdb engine
     'cdbport': 'couchdb_port', # -
+    'cdbname': 'couchdb_db_name', # -
     'verbose': True,
     'hide-nodes': False,
 }
