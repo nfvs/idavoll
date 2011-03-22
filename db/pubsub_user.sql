@@ -1,0 +1,11 @@
+CREATE USER pubsub WITH PASSWORD 'pubsub';
+GRANT ALL ON affiliations TO pubsub;
+GRANT ALL ON affiliations_affiliation_id_seq TO pubsub;
+GRANT ALL ON entities TO pubsub;
+GRANT ALL ON entities_entity_id_seq TO pubsub;
+GRANT ALL ON items TO pubsub;
+GRANT ALL ON items_item_id_seq TO pubsub;
+GRANT ALL ON nodes TO pubsub;
+GRANT ALL ON nodes_node_id_seq TO pubsub;
+GRANT ALL ON subscriptions TO pubsub;
+GRANT ALL ON subscriptions_subscription_id_seq TO pubsub;
