@@ -1,11 +1,15 @@
 import datetime
 
+import xml.sax.saxutils
+
 from zope.interface import implements
 
 from twisted.internet import threads
 
 from idavoll import error, iidavoll
 from idavoll import pgsql_storage
+
+from wokkel.generic import parseXml, stripNamespace
 
 from couchdbkit import *
 
@@ -27,12 +31,15 @@ class CouchStorage:
         item_id = StringProperty()
         node = StringProperty()
         publisher = StringProperty()
-        data = DictProperty()
-        date = DateTimeProperty()
+        #data = DictProperty()
+        data = StringProperty()
+        date = StringProperty()
 
         def save(self):
             # always update date
-            self.date = datetime.datetime.utcnow()
+            self.date = datetime.datetime.utcnow().strftime(
+                "%Y/%m/%d %H:%M:%S.%f")
+
             if self['_id'] is None:
                 self['_id'] = self.key(node=self.node, item_id=self.item_id)
             return Document.save(self)
@@ -57,8 +64,6 @@ class Storage(pgsql_storage.Storage):
         # couchdb
         self.cdb = cdb
         CouchStorage.Item.set_db(self.cdb)
-
-        # upload design docs if they dont exist
 
     def getNode(self, nodeIdentifier):
         return self.dbpool.runInteraction(self._getNode, nodeIdentifier)
@@ -87,7 +92,6 @@ class LeafNode(pgsql_storage.LeafNode):
         d = self.dbpool.runInteraction(self._checkNodeExists)
         d.addCallback(self._storeItems, items, publisher)
         return d
-        #return threads.deferToThread(self._storeItems, items, publisher)
 
     def _storeItems(self, cursor, items, publisher):
         # ignore cursor!
@@ -98,8 +102,9 @@ class LeafNode(pgsql_storage.LeafNode):
             self._storeItem(item, publisher)
 
     def _storeItem(self, item, publisher):
-        s = DictSerializer()
-        data = s.dict_from_elem(item)
+        # strip new lines / extra spaces
+        data = item.toXml().replace('\n','').replace('\t','').strip()
+        data = ' '.join(data.split())
 
         # try updating existing item;
         # if it doesnt exist, create a new one
@@ -125,7 +130,6 @@ class LeafNode(pgsql_storage.LeafNode):
         d = self.dbpool.runInteraction(self._checkNodeExists)
         d.addCallback(self._getItems, maxItems)
         return d
-        #threads.deferToThread(self._getItems, maxItems)
 
     def _getItems(self, cursor, maxItems):
         # ignore cursor!
@@ -147,9 +151,9 @@ class LeafNode(pgsql_storage.LeafNode):
                 descending=True,
                 include_docs=True
                 )
-
-        s = DictSerializer()
-        elements = [s.serialize_to_xml(i.data) for i in items]
+        
+        elements = [stripNamespace(parseXml(i.data.encode('utf-8')))
+                    for i in items]
         return elements
 
     def getItemsById(self, itemIdentifiers):
@@ -166,10 +170,8 @@ class LeafNode(pgsql_storage.LeafNode):
             include_docs=True
         )
 
-        #values = [parseXml(i.data.encode('utf-8')) for i in items.all()]
-        s = DictSerializer()
-        values = [s.serialize_to_xml(i.data) for i in items.all()]
-        return values
+        elements = [parseXml(i.data.encode('utf-8')) for i in items.all()]
+        return elements
 
 
 class CollectionNode(pgsql_storage.CollectionNode):
