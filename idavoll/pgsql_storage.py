@@ -321,6 +321,44 @@ class Node:
         return config
 
 
+    def setAffiliations(self, affiliations):
+        return self.dbpool.runInteraction(self._setAffiliations, affiliations)
+
+
+    def _setAffiliations(self, cursor, affiliations):
+        
+        # validate affiliations, insert missing entities
+        for ent, aff in affiliations.iteritems():
+            if aff not in ['owner', 'publisher', 'outcast']:
+                raise error.NoAffiliation()
+            else:
+                try:
+                    cursor.execute("""INSERT INTO entities (jid) VALUES (%s)""",
+                        (str(ent.userhost()),) )
+                except cursor._pool.dbapi.OperationalError:
+                    pass
+
+        # insert / update affiliations
+        for entity, affiliation in affiliations.iteritems():
+            
+            try:
+                cursor.execute("""INSERT INTO affiliations
+                    (node_id, entity_id, affiliation)
+                    SELECT node_id, entity_id, %s FROM
+                    (SELECT node_id FROM nodes WHERE node=%s) as n
+                    CROSS JOIN (SELECT entity_id FROM entities WHERE jid=%s)
+                    as e""",
+                    (affiliation, self.nodeIdentifier, str(entity.userhost())))
+            except cursor._pool.dbapi.OperationalError:
+                cursor.execute("""UPDATE affiliations SET affiliation=%s WHERE
+                    entity_id=(SELECT entity_id FROM entities WHERE jid=%s) AND
+                    node_id=(SELECT node_id FROM nodes WHERE node=%s)""",
+                    (affiliation, str(entity.userhost()), self.nodeIdentifier))
+
+
+
+
+
     def getAffiliation(self, entity):
         return self.dbpool.runInteraction(self._getAffiliation, entity)
 

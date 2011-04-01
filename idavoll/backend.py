@@ -395,6 +395,25 @@ class BackendService(service.Service, utility.EventDispatcher):
         return node.setConfiguration(options)
 
 
+    def setNodeAffiliations(self, nodeIdentifier, affiliations, requestor):
+        if not nodeIdentifier:
+            return defer.fail(error.NoRootNode())
+
+        d = self.storage.getNode(nodeIdentifier)
+        d.addCallback(_getAffiliation, requestor)
+        d.addCallback(self._doSetNodeAffiliations, affiliations)
+        return d
+
+
+    def _doSetNodeAffiliations(self, result, affiliations):
+        node, affiliation = result
+
+        if affiliation != 'owner':
+            raise error.Forbidden()
+
+        return node.setAffiliations(affiliations)
+
+
     def getAffiliations(self, entity):
         return self.storage.getAffiliations(entity)
 
@@ -751,6 +770,10 @@ class PubSubResourceFromBackend(PubSubResource):
                                               request.sender)
         return d.addErrback(self._mapErrors)
 
+    def affiliationsSet(self, request):
+        d = self.backend.setNodeAffiliations(request.nodeIdentifier,
+                                             request.affiliations,
+                                             request.sender)
 
     def items(self, request):
         d = self.backend.getItems(request.nodeIdentifier,
