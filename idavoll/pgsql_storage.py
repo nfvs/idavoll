@@ -640,24 +640,27 @@ class LeafNode(Node):
 
     def _storeItem(self, cursor, item, publisher):
         data = item.toXml()
-        cursor.execute("""UPDATE items SET date=now(), publisher=%s, data=%s
-                          FROM nodes
-                          WHERE nodes.node_id = items.node_id AND
-                                nodes.node = %s and items.item=%s""",
-                       (publisher.full(),
-                        data,
-                        self.nodeIdentifier,
-                        item["id"]))
-        if cursor.rowcount == 1:
-            return
 
-        cursor.execute("""INSERT INTO items (node_id, item, publisher, data)
+        # try to insert, update if already exists
+        try:
+            cursor.execute("""INSERT INTO items (node_id,item,publisher,data)
                           SELECT node_id, %s, %s, %s FROM nodes
                                                      WHERE node=%s""",
                        (item["id"],
                         publisher.full(),
                         data,
                         self.nodeIdentifier))
+
+        except cursor._pool.dbapi.OperationalError as e:
+            cursor.execute("""UPDATE items SET date=now(),publisher=%s,data=%s
+                              FROM nodes
+                              WHERE nodes.node_id = items.node_id AND
+                                  nodes.node = %s and items.item=%s""",
+                          (publisher.full(),
+                           data,
+                           self.nodeIdentifier,
+                           item["id"]))
+
 
 
     def removeItems(self, itemIdentifiers):
