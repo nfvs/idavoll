@@ -321,12 +321,30 @@ class Node:
         return config
 
 
+    def getAffiliations(self):
+        return self.dbpool.runInteraction(self._getAffiliations)
+
+
+    def _getAffiliations(self, cursor):
+        try:
+            cursor.execute("""SELECT jid, affiliation FROM nodes
+                          NATURAL JOIN affiliations
+                          NATURAL JOIN entities
+                          WHERE node=%s""",
+                       (self.nodeIdentifier,))
+            result = cursor.fetchall()
+            return dict((jid.internJID(r[0]), r[1]) for r in result)
+
+        except cursor._pool.dbapi.OperationalError as e:
+            raise error.Error()
+
+
     def setAffiliations(self, affiliations):
         return self.dbpool.runInteraction(self._setAffiliations, affiliations)
 
 
     def _setAffiliations(self, cursor, affiliations):
-        
+
         # validate affiliations, insert missing entities
         for ent, aff in affiliations.iteritems():
             if aff not in ['owner', 'publisher', 'outcast']:
@@ -340,7 +358,7 @@ class Node:
 
         # insert / update affiliations
         for entity, affiliation in affiliations.iteritems():
-            
+
             try:
                 cursor.execute("""INSERT INTO affiliations
                     (node_id, entity_id, affiliation)
@@ -601,23 +619,6 @@ class Node:
                        self.nodeIdentifier))
 
         return cursor.fetchone() is not None
-
-
-    def getAffiliations(self):
-        return self.dbpool.runInteraction(self._getAffiliations)
-
-
-    def _getAffiliations(self, cursor):
-        self._checkNodeExists(cursor)
-
-        cursor.execute("""SELECT jid, affiliation FROM nodes
-                          NATURAL JOIN affiliations
-                          NATURAL JOIN entities
-                          WHERE node=%s""",
-                       self.nodeIdentifier)
-        result = cursor.fetchall()
-
-        return [(jid.internJID(r[0]), r[1]) for r in result]
 
 
 
