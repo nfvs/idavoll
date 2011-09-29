@@ -4,4 +4,6 @@ dist/
 idavoll.egg-info/
 *.pyc
 *.tmproj
-
+*.tac
+*.pid
+twisted/plugins/dropin.cache

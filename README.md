@@ -30,10 +30,12 @@ View README for more information.
 * A Jabber server that supports the component protocol (XEP-0114)
 
 For the PostgreSQL backend:
+
 * PostgreSQL
 * pyPgSQL
 
 For the CouchDB backend
+
 * CouchDB >=1.0.1
 
 ## Installation
@@ -46,6 +48,7 @@ For the CouchDB backend
 The easiest way to start Idavoll is to use a .tac configuration file, as given in doc/examples/idavoll.tac.
 
 ## Common configuration
+
     'jid': JID('<PubSub JID to be used by this component>')
 	'secret': '<secret used to communicate with the XMPP server'
 	'rhost': '<hostname of the XMPP server component interface>'
@@ -53,6 +56,7 @@ The easiest way to start Idavoll is to use a .tac configuration file, as given i
 	'backend': '<backend to be used; e.g. pgsql, pgsq_couchdb>'
 
 ## PostgreSQL configuration
+
     'dbhost': '<hostname of the PostgreSQL database>'
     'dbport': '<port number of the PostgreSQL database>'
     'dbname': '<name of the PostgreSQL database>'
@@ -60,13 +64,15 @@ The easiest way to start Idavoll is to use a .tac configuration file, as given i
     'dbpass': '<password of the username to access the PostgreSQL database>'
 
 ## CouchDB configuration
+
     'cdbhost': '<hostname of the CouchDB database>'
 	'cdbport': '<port number of the CouchDB database>'
 	'cdbname': '<name of the CouchDB database>'
 
 # Running
 
-To run idavoll using a configuration file config.tac, use:
+To run idavoll using a configuration file config.tac, use
+
     twistd -y config.tac
 
 # Contact
