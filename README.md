@@ -1,7 +1,9 @@
 # Idavoll 0.9.1
 
-This is a fork of Ralph Meijer's Idavoll (<https://github.com/ralphm/idavoll>).  
+This is a development version, forked from Ralph Meijer's Idavoll (<https://github.com/ralphm/idavoll>).  
 View README for more information.
+
+**Upstream contributions are at https://bitbucket.org/nfvs/idavoll-patches.**
 
 # New Features
 
